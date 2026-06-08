@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write(src/**)",
+      "Write(scripts/**)",
+      "Write(tests/**)",
+      "Bash(uv:*)",
+      "Bash(python scripts/check_auth.py)",
+      "Bash(python scripts/run_backtest.py)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": [
+      "Bash(python scripts/run_paper.py:*)",
+      "Bash(rm:*)"
+    ],
+    "ask": []
+  }
+}

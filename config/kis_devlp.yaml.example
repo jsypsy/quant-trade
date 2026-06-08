@@ -1,0 +1,13 @@
+# ~/KIS/config/kis_devlp.yaml 에 복사 후 실제 값 입력 (저장소에는 이 example만 커밋)
+# 실전투자
+my_app: "실전 앱키"
+my_sec: "실전 앱시크릿"
+my_acct_stock: "증권계좌 앞 8자리"
+# 모의투자
+paper_app: "모의 앱키"
+paper_sec: "모의 앱시크릿"
+my_paper_stock: "모의 계좌 앞 8자리"
+# 공통
+my_htsid: "HTS_ID"
+my_prod: "01"
+my_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
