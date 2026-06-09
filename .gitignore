@@ -2,6 +2,7 @@
 .env
 *.yaml
 *.yml
+!.github/**/*.yml
 
 # 토큰 캐시
 .kis_token_cache.json
