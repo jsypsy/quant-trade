@@ -3,16 +3,16 @@
 한국 공휴일 캘린더는 미포함 — 토·일 제외만 처리.
 공휴일 대응이 필요하면 KIS 영업일 조회 API 또는 holidays 패키지를 연동하세요.
 
-KR 운영시간: NXT(넥스트레이드) 포함 08:00~20:00.
-  - NXT 정규장: 08:00~09:00 / 15:30~20:00
-  - KRX 정규장: 09:00~15:30
+KR 운영시간: KRX 정규장 09:00~15:30.
+  - KIS 모의투자(vps)는 NXT 미지원 → 정규장 시간만 사용.
 """
+import datetime as _dt
 import zoneinfo
 from datetime import datetime, time as dtime
 
 _KST = zoneinfo.ZoneInfo("Asia/Seoul")
-_OPEN  = dtime(8, 0)    # NXT 개장 (KRX는 09:00)
-_CLOSE = dtime(20, 0)   # NXT 마감 (KRX는 15:30)
+_OPEN  = dtime(9, 0)
+_CLOSE = dtime(15, 30)
 
 
 def now_kst() -> datetime:
@@ -24,7 +24,7 @@ def is_weekday() -> bool:
 
 
 def is_market_open() -> bool:
-    """현재 KST 시각이 KR 운영시간(NXT 포함 08:00~20:00) 안에 있으면 True."""
+    """현재 KST 시각이 KRX 정규장(09:00~15:30) 안에 있으면 True."""
     if not is_weekday():
         return False
     t = now_kst().time()
@@ -37,13 +37,13 @@ def seconds_until_open() -> float:
     if is_market_open():
         return 0.0
 
-    open_today = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    open_today = now.replace(hour=9, minute=0, second=0, microsecond=0)
     if now < open_today and is_weekday():
         return (open_today - now).total_seconds()
 
     days_ahead = 1
     while True:
-        candidate = (now + __import__("datetime").timedelta(days=days_ahead)).replace(
+        candidate = (now + _dt.timedelta(days=days_ahead)).replace(
             hour=9, minute=0, second=0, microsecond=0
         )
         if candidate.weekday() < 5:
@@ -54,6 +54,6 @@ def seconds_until_open() -> float:
 def seconds_until_close() -> float:
     """장 마감까지 남은 초. 마감됐으면 0."""
     now = now_kst()
-    close_today = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    close_today = now.replace(hour=15, minute=30, second=0, microsecond=0)
     remaining = (close_today - now).total_seconds()
     return max(0.0, remaining)
