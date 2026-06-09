@@ -10,6 +10,9 @@
 logs/
 *.log
 
+# 거래 기록
+trades/
+
 # Python
 __pycache__/
 *.py[cod]
