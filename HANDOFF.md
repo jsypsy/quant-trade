@@ -1,53 +1,39 @@
 # Session Handoff
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-10_
 
 ## 이번 세션에서 완료한 것
 
-- T1: 전체 폴더 구조 + 모든 모듈 스텁 생성 (53개 파일)
-- T2: uv 의존성 설치 (httpx, pydantic-settings, loguru, pandas, numpy 등)
-- T3: `config/settings.py` — pydantic-settings 기반, KIS_ENV로 도메인/계정 분기
-- T4: `src/kis/auth.py` — 토큰 발급·파일 캐시(`~/.kis_token_cache.json`)·1분 재발급 제한
-- T5: `scripts/check_auth.py` — 모의투자 토큰 + 삼성전자(005930) 현재가 연결 검증 스크립트
-- README.md: 멀티 머신 셋업 가이드 (Windows/Mac 공통) 작성
-- GitHub 푸시: `https://github.com/jsypsy/quant-trade` master 브랜치
+- **포지션 없는 SELL 방어** — `runner.py` `_cycle()` 에서 SELL 신호 시 `position_values <= 0`이면 스킵
+- **`sync_fills()` 완성** — `order.py`에 `get_unfilled_tickers()` 추가 (KIS `/uapi/domestic-stock/v1/trading/inquire-nccs` 연동), `order_manager.py` `sync_fills()`가 KIS 응답과 교집합으로 체결 완료 종목 제거
 
 ## 진행 중이거나 미완료
 
-- **check_auth.py 실행 검증 미완료** — 사용자가 아직 실행 결과를 보여주지 않음
-  - 성공 기준: 토큰 발급 OK + 삼성전자 현재가 숫자 출력
-  - 실패 시 확인할 것: `~/KIS/config/kis_devlp.yaml` 값, TR_ID `FHKST01010100` 정확성
-- T6~T12 미진행 (사용자 지시에 따라 T5 이후 대기 중)
+### 🔲 KR 주문 테스트 미확인
+- 아직 장 시작 전 (08:00 KST) — 오늘 08:00~20:00 사이 로그 확인 필요
+- `tail -f logs/paper_run.log` → `[ORDER][KR] BUY 005930` 같은 성공 메시지 확인
+
+### 미완성
+- `sync_fills()` KR만 지원, US 미체결 조회 없음 (US 현재 비활성)
 
 ## 핵심 결정 사항
 
-- 프로젝트 루트: `d:\workspace\quant-trade\` (= `kis-quant-trading/`)
-- 패키지 매니저: `uv 0.11.7` (Python 3.14.4 환경)
-- KIS_ENV 기본값: `vps` (모의투자) — `.env`에서 관리
-- 토큰 캐시: `~/.kis_token_cache.json` — gitignore, 환경(env)별 분리 처리
-- TR_ID `FHKST01010100`: 공식 예제 기반이나 코드에 `# TODO` 주석 남김
-- HTS ID: `$1963755` (KIS 포털 표시값 그대로 사용 — 실제 사용 시 확인 필요)
-- `my_prod` (계좌 뒤 2자리): `01` 기본값 — 실제 계좌와 다를 수 있음
+- **sync_fills API 실패 처리**: `None` 반환 시 pending 유지 (보수적 처리)
+- **dry_run sync_fills**: `set()` 반환 → pending 전체 초기화 (이전과 동일 동작)
+- **SELL 방어 기준**: `position_values.get(ticker, 0.0) <= 0` (잔고 조회 실패 시 fallback `{}` 적용)
 
 ## 알아두어야 할 맥락
 
-- 비밀 파일 위치:
-  - `C:\Users\jeong\KIS\config\kis_devlp.yaml` (윈도우, 저장소 외부)
-  - `d:\workspace\quant-trade\.env` (gitignore)
-- 다른 머신에서 클론 시 두 파일을 수동으로 재생성해야 함 (README에 상세 가이드 있음)
-- `settings.py`의 `_load_yaml()`은 매 속성 접근마다 파일을 읽음 — T6에서 캐시로 개선 가능
+- KR 8종목 운용 중, US 비활성 (실전 앱키 없음)
+- 모의투자(vps) 환경, 장 중 300초 주기
+- KIS 미체결 TR_ID: `VTTC8036R`(vps) / `TTTC8036R`(prod)
 
 ## 다음 작업 제안
 
-1. **`python scripts/check_auth.py` 실행 결과 확인** (T5 최종 검증)
-2. T6: `src/kis/client.py` — REST 공통 호출 (헤더/유량제어/재시도) + `data/market.py` 시세 조회
-3. T7: 전략 베이스 + 골든크로스 예시 + 시그널 엔진
-4. T8: `src/risk/guard.py` 안전장치 + 테스트
+1. **[08:00~ 확인] KR 첫 주문 성공 로그** — `[ORDER][KR]` 메시지 + `[OM] XXX 체결 확인 — pending 제거` 메시지
+2. **US 재개 (선택)** — KIS 실전 API 신청 → `~/KIS/config/kis_devlp.yaml` `my_app/my_sec` 채우기
 
 ## 관련 파일
 
-- [config/settings.py](config/settings.py) — KIS_ENV 분기, 계정 로더
-- [src/kis/auth.py](src/kis/auth.py) — 토큰 관리 핵심
-- [scripts/check_auth.py](scripts/check_auth.py) — 연결 검증
-- [README.md](README.md) — 멀티 머신 셋업 가이드
-- [CLAUDE.md](CLAUDE.md) — 코딩 행동 지침
-- [PROJECT_SETUP.md](PROJECT_SETUP.md) — 프로젝트 전체 사양
+- [src/scheduler/runner.py](src/scheduler/runner.py) — SELL 방어 (L155-157)
+- [src/execution/order.py](src/execution/order.py) — `get_unfilled_tickers()` 추가 (L127-146)
+- [src/execution/order_manager.py](src/execution/order_manager.py) — `sync_fills()` KIS 연동

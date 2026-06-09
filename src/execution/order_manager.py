@@ -1,1 +1,106 @@
-# TODO: T9 — 미체결 관리·중복 방지·체결 동기화
+"""주문 매니저.
+
+OrderExecutor 위에서 미체결 추적과 중복 방지를 담당한다.
+
+흐름:
+  submit() → 미체결 목록에 ticker 추가 → OrderExecutor.submit()
+  sync_fills() → KIS 미체결 조회 → 체결 완료된 ticker 를 목록에서 제거  (T10 에서 주기적으로 호출)
+"""
+from loguru import logger
+
+from src.execution.order import OrderExecutor, OrderRequest, OrderResult, OrderType
+from src.risk.guard import RiskDecision
+from src.strategy.base import Action
+from src.notify.telegram import notify_kill, notify_order  # noqa: F401 (notify_cycle imported by runner)
+from src.utils.trade_log import log_trade
+
+
+class OrderManager:
+    def __init__(self, executor: OrderExecutor) -> None:
+        self._executor = executor
+        self._pending: set[str] = set()   # 미체결 종목 집합
+
+    # ------------------------------------------------------------------
+    # Public
+    # ------------------------------------------------------------------
+
+    def submit(
+        self,
+        decision: RiskDecision,
+        price: float,
+        market: str = "KR",
+        excd: str = "NAS",
+    ) -> OrderResult | None:
+        """RiskDecision 을 받아 주문을 제출한다.
+
+        Args:
+            decision: RiskGuard.check() 의 반환값
+            price:    현재가 (지정가 주문에 사용)
+            market:   "KR" | "US"
+            excd:     해외 거래소 코드 (US 전용, 기본 "NAS")
+
+        Returns:
+            OrderResult, 또는 미승인/HOLD 시 None
+        """
+        if not decision.approved or decision.action == Action.HOLD:
+            if not decision.approved:
+                log_trade(
+                    market=market, side=decision.action.value, ticker=decision.ticker,
+                    qty=decision.qty, price=price, dry_run=self._executor.dry_run,
+                    approved=False, reject_reason=decision.reason,
+                )
+                if "킬스위치" in decision.reason:
+                    notify_kill(reason=decision.reason, daily_pnl=0.0)
+            return None
+
+        if decision.ticker in self._pending:
+            logger.warning("[OM] {} 미체결 주문 존재 — 중복 제출 차단", decision.ticker)
+            log_trade(
+                market=market, side=decision.action.value, ticker=decision.ticker,
+                qty=decision.qty, price=price, dry_run=self._executor.dry_run,
+                approved=False, reject_reason="미체결 중복 차단",
+            )
+            return None
+
+        req = OrderRequest(
+            ticker=decision.ticker,
+            side=decision.action.value,
+            qty=decision.qty,
+            price=price,
+            order_type=OrderType.LIMIT,
+            market_type=market,
+            excd=excd,
+        )
+        result = self._executor.submit(req)
+
+        log_trade(
+            market=market, side=decision.action.value, ticker=decision.ticker,
+            qty=result.qty, price=result.price, dry_run=result.dry_run,
+            approved=True, order_no=result.order_no, error=result.error,
+        )
+
+        if result.success:
+            self._pending.add(decision.ticker)
+            logger.info("[OM] {} 미체결 등록 (총 {}건)", decision.ticker, len(self._pending))
+            notify_order(
+                market=market, side=result.side, ticker=result.ticker,
+                qty=result.qty, price=result.price,
+                order_no=result.order_no, dry_run=result.dry_run,
+            )
+
+        return result
+
+    def get_pending_tickers(self) -> set[str]:
+        return set(self._pending)
+
+    def sync_fills(self) -> None:
+        """KIS 미체결 조회 후 체결 완료된 종목을 pending에서 제거한다."""
+        if not self._pending:
+            return
+        unfilled = self._executor.get_unfilled_tickers()
+        if unfilled is None:
+            return  # API 실패 — 기존 목록 유지
+        filled = self._pending - unfilled
+        for ticker in filled:
+            logger.info("[OM] {} 체결 확인 — pending 제거", ticker)
+        self._pending &= unfilled
