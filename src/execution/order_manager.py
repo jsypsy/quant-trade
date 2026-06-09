@@ -28,24 +28,12 @@ class OrderManager:
         self,
         decision: RiskDecision,
         price: float,
-        market: str = "KR",
-        excd: str = "NAS",
     ) -> OrderResult | None:
-        """RiskDecision 을 받아 주문을 제출한다.
-
-        Args:
-            decision: RiskGuard.check() 의 반환값
-            price:    현재가 (지정가 주문에 사용)
-            market:   "KR" | "US"
-            excd:     해외 거래소 코드 (US 전용, 기본 "NAS")
-
-        Returns:
-            OrderResult, 또는 미승인/HOLD 시 None
-        """
+        """RiskDecision 을 받아 주문을 제출한다."""
         if not decision.approved or decision.action == Action.HOLD:
             if not decision.approved:
                 log_trade(
-                    market=market, side=decision.action.value, ticker=decision.ticker,
+                    market="KR", side=decision.action.value, ticker=decision.ticker,
                     qty=decision.qty, price=price, dry_run=self._executor.dry_run,
                     approved=False, reject_reason=decision.reason,
                 )
@@ -56,7 +44,7 @@ class OrderManager:
         if decision.ticker in self._pending:
             logger.warning("[OM] {} 미체결 주문 존재 — 중복 제출 차단", decision.ticker)
             log_trade(
-                market=market, side=decision.action.value, ticker=decision.ticker,
+                market="KR", side=decision.action.value, ticker=decision.ticker,
                 qty=decision.qty, price=price, dry_run=self._executor.dry_run,
                 approved=False, reject_reason="미체결 중복 차단",
             )
@@ -68,13 +56,11 @@ class OrderManager:
             qty=decision.qty,
             price=price,
             order_type=OrderType.LIMIT,
-            market_type=market,
-            excd=excd,
         )
         result = self._executor.submit(req)
 
         log_trade(
-            market=market, side=decision.action.value, ticker=decision.ticker,
+            market="KR", side=decision.action.value, ticker=decision.ticker,
             qty=result.qty, price=result.price, dry_run=result.dry_run,
             approved=True, order_no=result.order_no, error=result.error,
         )
@@ -83,7 +69,7 @@ class OrderManager:
             self._pending.add(decision.ticker)
             logger.info("[OM] {} 미체결 등록 (총 {}건)", decision.ticker, len(self._pending))
             notify_order(
-                market=market, side=result.side, ticker=result.ticker,
+                market="KR", side=result.side, ticker=result.ticker,
                 qty=result.qty, price=result.price,
                 order_no=result.order_no, dry_run=result.dry_run,
             )

@@ -25,6 +25,8 @@ class KISSettings(BaseSettings):
     max_order_amount: int = Field(default=1_000_000)
     max_position_pct: float = Field(default=0.2)
 
+    dry_run: bool = Field(default=True)
+
     telegram_bot_token: str = Field(default="")
     telegram_chat_id: str = Field(default="")
 
