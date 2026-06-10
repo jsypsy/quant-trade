@@ -33,14 +33,22 @@ class Position:
     ticker: str
     name: str
     qty: int
+    orderable_qty: int
     avg_price: int
-    current_value: int   # 평가금액 (원)
+    current_price: int
+    current_value: int    # 평가금액
+    purchase_amount: int  # 매입금액
+    pnl: int              # 평가손익
+    pnl_rate: float       # 수익률 (%)
 
 
 @dataclass
 class Balance:
-    cash: int             # 예수금 (원)
-    portfolio_value: int  # 총 평가금액 (원)
+    cash: int             # 예수금
+    portfolio_value: int  # 총 평가금액
+    purchase_amount: int  # 총 매입금액
+    pnl: int              # 총 평가손익
+    pnl_rate: float       # 총 수익률 (%)
     positions: list[Position]
 
 
@@ -62,8 +70,13 @@ class AccountQuery:
                 ticker=row.get("pdno", ""),
                 name=row.get("prdt_name", ""),
                 qty=int(row.get("hldg_qty", 0) or 0),
+                orderable_qty=int(row.get("ord_psbl_qty", 0) or 0),
                 avg_price=int(float(row.get("pchs_avg_pric", 0) or 0)),
+                current_price=int(row.get("prpr", 0) or 0),
                 current_value=int(row.get("evlu_amt", 0) or 0),
+                purchase_amount=int(row.get("pchs_amt", 0) or 0),
+                pnl=int(row.get("evlu_pfls_amt", 0) or 0),
+                pnl_rate=float(row.get("evlu_erng_rt", 0) or 0),
             )
             for row in data.get("output1", [])
             if int(row.get("hldg_qty", 0) or 0) > 0
@@ -73,6 +86,13 @@ class AccountQuery:
         summary = summary[0] if isinstance(summary, list) else summary
         cash = int(summary.get("dnca_tot_amt", 0) or 0)
         total = int(summary.get("tot_evlu_amt", 0) or 0)
+        purchase = int(summary.get("pchs_amt_smtl_amt", 0) or 0)
+        pnl = int(summary.get("evlu_pfls_smtl_amt", 0) or 0)
+        pnl_rate = float(summary.get("evlu_erng_rt1", 0) or 0)
 
         logger.info("잔고 조회: 예수금={:,}원  총평가={:,}원  보유종목={}개", cash, total, len(positions))
-        return Balance(cash=cash, portfolio_value=total, positions=positions)
+        return Balance(
+            cash=cash, portfolio_value=total,
+            purchase_amount=purchase, pnl=pnl, pnl_rate=pnl_rate,
+            positions=positions,
+        )

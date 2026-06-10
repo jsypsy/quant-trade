@@ -46,3 +46,7 @@ jobs:
         env:
           RUN_MINUTES: ${{ steps.calc.outputs.minutes }}
         run: uv run python scripts/run_paper.py
+
+      - name: 최종 포트폴리오 현황
+        if: always()
+        run: uv run python scripts/portfolio_report.py
