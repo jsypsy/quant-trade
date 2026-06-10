@@ -17,6 +17,7 @@ from loguru import logger
 
 from config.settings import settings
 from src.data.market import MarketData
+from src.data.universe import MARKET_KOSPI, UniverseProvider
 from src.execution.order import OrderExecutor
 from src.execution.order_manager import OrderManager
 from src.kis.auth import KISAuth
@@ -25,25 +26,20 @@ from src.portfolio.account import AccountQuery
 from src.risk.guard import RiskGuard
 from src.scheduler.runner import PaperTrader
 from src.signal.engine import SignalEngine
+from src.strategy.base import Strategy
 from src.strategy.golden_cross import GoldenCrossStrategy
 from src.utils.logging import setup_logging
 
-DRY_RUN     = settings.dry_run
-INTERVAL    = int(os.getenv("INTERVAL_SEC", "20"))  # 20초 단타
-RUN_MINUTES = int(os.getenv("RUN_MINUTES", "0"))    # 0 = 무제한
+DRY_RUN              = settings.dry_run
+INTERVAL             = int(os.getenv("INTERVAL_SEC", "20"))        # 20초 단타
+RUN_MINUTES          = int(os.getenv("RUN_MINUTES", "0"))          # 0 = 무제한
+UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "10"))      # 동적 유니버스 종목 수
+UNIVERSE_REFRESH_SEC = int(os.getenv("UNIVERSE_REFRESH_SEC", "300"))  # 5분마다 종목 재선정
 
-# ── 전략 유니버스 ────────────────────────────────────────────────
-# KR: 20초 간격 — 알고리즘 선정 2026-06-09, scalping_score 기반 MA 윈도우
-UNIVERSE = [
-    GoldenCrossStrategy("005930", short_window=4, long_window=12, bar_type="minute"),  # 삼성전자   score=314.9 mom=-7.7%
-    GoldenCrossStrategy("000660", short_window=4, long_window=12, bar_type="minute"),  # SK하이닉스 score=150.3 mom=-6.3%
-    GoldenCrossStrategy("035420", short_window=5, long_window=18, bar_type="minute"),  # NAVER      score=85.4  mom=-5.3%
-    GoldenCrossStrategy("005380", short_window=5, long_window=18, bar_type="minute"),  # 현대차     score=74.4  mom=-14.8%
-    GoldenCrossStrategy("028260", short_window=5, long_window=18, bar_type="minute"),  # 삼성물산   score=60.6  mom=-5.7%
-    GoldenCrossStrategy("000270", short_window=5, long_window=18, bar_type="minute"),  # 기아       score=55.9  mom=-3.3%
-    GoldenCrossStrategy("055550", short_window=6, long_window=20, bar_type="minute"),  # 신한지주   score=36.6  mom=+9.3%
-    GoldenCrossStrategy("105560", short_window=6, long_window=20, bar_type="minute"),  # KB금융     score=36.8  mom=+1.8%
-]
+
+def make_strategy(ticker: str) -> Strategy:
+    """동적 유니버스 종목에 적용할 전략 (분봉 골든크로스)."""
+    return GoldenCrossStrategy(ticker, short_window=5, long_window=18, bar_type="minute")
 
 
 def main() -> None:
@@ -62,7 +58,8 @@ def main() -> None:
     guard    = RiskGuard()
     executor = OrderExecutor(client, dry_run=DRY_RUN)
     manager  = OrderManager(executor)
-    engine   = SignalEngine(UNIVERSE, market)
+    engine   = SignalEngine(make_strategy, market)
+    universe = UniverseProvider(client, market=MARKET_KOSPI, top_n=UNIVERSE_TOP_N)
 
     trader = PaperTrader(
         signal_engine=engine,
@@ -70,7 +67,9 @@ def main() -> None:
         guard_kr=guard,
         order_manager=manager,
         account=account,
+        universe=universe,
         interval=INTERVAL,
+        universe_refresh_sec=UNIVERSE_REFRESH_SEC,
     )
     trader.run(max_seconds=RUN_MINUTES * 60 if RUN_MINUTES else None)
 

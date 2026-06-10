@@ -11,6 +11,7 @@ import time
 from loguru import logger
 
 from src.data.market import MarketData
+from src.data.universe import UniverseProvider
 from src.execution.order_manager import OrderManager
 from src.notify.telegram import notify_error, notify_portfolio
 from src.utils.trade_log import log_trade
@@ -35,16 +36,22 @@ class PaperTrader:
         guard_kr: RiskGuard,
         order_manager: OrderManager,
         account: AccountQuery,
+        universe: UniverseProvider,
         interval: int = _DEFAULT_INTERVAL,
+        universe_refresh_sec: int = 300,
     ) -> None:
         self._engine    = signal_engine
         self._market    = market
         self._guard     = guard_kr
         self._manager   = order_manager
         self._account   = account
+        self._universe  = universe
         self._interval  = interval
+        self._universe_refresh_sec = universe_refresh_sec
         self._daily_pnl: float = 0.0
         self._cycle_no: int = 0
+        self._universe_tickers: list[str] = []
+        self._universe_ts: float = 0.0
 
     # ------------------------------------------------------------------
     # Public
@@ -92,6 +99,21 @@ class PaperTrader:
             logger.info("장 외 시간 — {:.0f}초 대기", wait)
             time.sleep(wait)
 
+    def _refresh_universe(self, held: list[str]) -> None:
+        """주기적으로 유니버스를 갱신하고, 보유 종목을 합쳐 전략을 구성한다.
+
+        보유 종목은 유니버스에서 빠져도 매도(청산) 관리를 위해 항상 포함한다.
+        """
+        now = time.monotonic()
+        if not self._universe_tickers or now - self._universe_ts >= self._universe_refresh_sec:
+            try:
+                self._universe_tickers = self._universe.fetch()
+                self._universe_ts = now
+            except Exception as exc:
+                logger.warning("[유니버스] 갱신 실패 — 기존 유지: {}", exc)
+        effective = list(dict.fromkeys(self._universe_tickers + held))
+        self._engine.set_universe(effective)
+
     def _cycle(self) -> dict:
         self._cycle_no += 1
         logger.info("━━ [KR] 사이클 #{} 시작 ━━", self._cycle_no)
@@ -112,8 +134,11 @@ class PaperTrader:
             position_values = {p.ticker: float(p.current_value) for p in balance.positions}
             position_qtys = {p.ticker: p.qty for p in balance.positions}
 
+        # 유니버스 갱신 (보유 종목은 매도 관리 위해 항상 포함)
+        self._refresh_universe(list(position_qtys.keys()))
+
         if not self._engine._strategies:
-            logger.info("[KR] 등록된 전략 없음")
+            logger.info("[KR] 유니버스 비어있음 — 스킵")
             return {}
 
         # 시그널

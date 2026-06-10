@@ -1,12 +1,14 @@
 """시그널 엔진.
 
-등록된 전략 목록을 순회하며 시장 데이터를 가져오고 BUY/SELL/HOLD 신호를 산출한다.
+유니버스(종목코드 목록)에 맞춰 전략 인스턴스를 동적으로 구성하고,
+각 전략에 시장 데이터를 공급해 BUY/SELL/HOLD 신호를 산출한다.
 각 전략은 `ticker` 속성을 가져야 한다.
 
 bar_type:
   "daily"  — 일봉 (스윙/포지션 트레이딩)
   "minute" — 1분봉 (당일 단타)
 """
+from collections.abc import Callable
 from datetime import date, timedelta
 
 from loguru import logger
@@ -21,9 +23,19 @@ _MINUTE_CNT = 30
 
 
 class SignalEngine:
-    def __init__(self, strategies: list[Strategy], market: MarketData) -> None:
-        self._strategies = strategies
+    def __init__(self, strategy_factory: Callable[[str], Strategy], market: MarketData) -> None:
+        self._make_strategy = strategy_factory
         self._market = market
+        self._strategies: dict[str, Strategy] = {}
+
+    def set_universe(self, tickers: list[str]) -> None:
+        """현재 유니버스에 맞춰 전략을 추가/제거한다 (기존 인스턴스는 유지)."""
+        wanted = set(tickers)
+        current = set(self._strategies)
+        for ticker in wanted - current:
+            self._strategies[ticker] = self._make_strategy(ticker)
+        for ticker in current - wanted:
+            del self._strategies[ticker]
 
     def run(self) -> dict[str, Signal]:
         """모든 전략을 실행하고 종목코드 → Signal 매핑을 반환한다."""
@@ -31,7 +43,7 @@ class SignalEngine:
         start = (date.today() - timedelta(days=_LOOKBACK_CALENDAR_DAYS)).strftime("%Y%m%d")
 
         signals: dict[str, Signal] = {}
-        for strategy in self._strategies:
+        for strategy in self._strategies.values():
             ticker = getattr(strategy, "ticker", None)
             if ticker is None:
                 logger.warning("전략 {}에 ticker 속성 없음 — 스킵", type(strategy).__name__)
