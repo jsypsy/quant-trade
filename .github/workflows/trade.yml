@@ -1,0 +1,48 @@
+name: 자동매매
+
+on:
+  workflow_dispatch:
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 420  # 장 최대 6.5시간 + 여유
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create .env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: printf '%s' "$DOT_ENV" > .env
+
+      - name: Create KIS config
+        env:
+          KIS_CONFIG: ${{ secrets.KIS_CONFIG_YAML }}
+        run: |
+          mkdir -p ~/KIS/config
+          printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
+
+      - name: 장마감까지 남은 시간 계산
+        id: calc
+        run: |
+          CLOSE=$(TZ=Asia/Seoul date -d "today 15:30:00" +%s)
+          NOW=$(date +%s)
+          REMAINING=$(( (CLOSE - NOW) / 60 ))
+          if [ "$REMAINING" -le 0 ]; then
+            echo "장 마감 후 — 실행 건너뜀"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "남은 시간: ${REMAINING}분"
+            echo "minutes=$REMAINING" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 자동매매 실행
+        if: steps.calc.outputs.skip == 'false'
+        env:
+          RUN_MINUTES: ${{ steps.calc.outputs.minutes }}
+        run: uv run python scripts/run_paper.py
