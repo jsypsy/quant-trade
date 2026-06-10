@@ -2,56 +2,38 @@
 _Last updated: 2026-06-10_
 
 ## 이번 세션에서 완료한 것
-
-- **포트폴리오 알림 포맷 개선**
-  - 종목코드 제거, 평단가 추가 (`종목명 N주 @ 가격 수익률`)
-  - 총 수익률 = 초기 자본(10M) 대비 실제 계좌 수익률로 수정 (`portfolio_value - initial_balance`)
-  - 주식 매입 / 주식 평가 분리 (직접 비교 가능)
-  - 보유 종목 없을 때 "보유 종목 없음" 명시
-- **portfolio.yml 제거** — KIS 동일 앱키 토큰 충돌(403) 문제로 삭제
-- **포트폴리오 알림 통합** — 자동매매 루프 안에서 주문 발생 사이클 끝에 전송
-- **초기 자본 설정 추가** — `settings.initial_balance = 10_000_000`
+- **주문 알림 정확성 수정** (`6487485`, main에 머지됨): 포트폴리오 현황을 주문 전 stale 잔고가 아니라 **실제 체결 확인 시점에 최신 잔고로** 전송. `sync_fills()`가 체결된 종목 집합 반환, runner가 체결 시에만 잔고 재조회. 라벨 `주문체결`→`주문접수`로 구분, 체결 시 종목명 표시.
+- **동적 유니버스 구현** (`54d76b4`, 피처 브랜치에만 있음): 대형주 8개 하드코딩 제거 → KIS 거래량순위 API로 5분마다 종목 자동 선정.
 
 ## 진행 중이거나 미완료
-
-### ⚠️ 포트폴리오 알림 정확도
-- KIS 모의투자 API가 주문 직후 잔고를 즉시 반영하지 않음
-- 현재: 주문 직전 상태의 balance 표시 (pre-order)
-- 재조회 시도했으나 빈 데이터 반환 → 원복
-- **미해결**: 포트폴리오를 주문 타이밍에 보내는 한 정확도 보장 불가
-- 대안으로 N분마다 정기 전송 논의했으나 미구현
-
-### 🔲 단타형 전략 + 동적 종목 선택 (미구현)
-- 현재: 8종목 고정 + 골든크로스 전략
-- 계획: KOSPI200 상위 30~40종목 풀, 매 사이클 모멘텀+거래량 기준 6~8개 동적 선택
-- 1~2분 주기, 스탑로스 -1%, 종목당 15~20% 비중
-- 구현 범위 큼 — 다음 세션에서 시작
-
-### 🔲 cron 자동 트리거 미설정
-- 현재 수동(workflow_dispatch)만 있음
+- **동적 유니버스는 아직 main 미머지** — 피처 브랜치(`claude/vigilant-einstein-uj2sxk`)에만 있음. 머지 여부 사용자 답변 대기 중.
+- **단위 보정 필요 (실거래 전 필수)**: KIS `acml_tr_pbmn`(거래대금)·`vol_inrt`(거래증가율) 단위 미확인. `min_trade_value`(500억 하한)·`min_rvol` 기본 비활성(0). 모의 응답 1회 찍어 단위 확인 후 켜야 함. → 확인용 스크립트 미작성.
+- **손절(stop-loss) 부재**: RiskGuard에 일일 손실 킬스위치만 있고 종목별 손절/익절 없음. 단타 핵심 보호장치라 별도 작업 필요.
 
 ## 핵심 결정 사항
-
-- **KIS 토큰**: 앱키당 1개, 동시 발급 불가 → 별도 워크플로우에서 잔고 조회 불가
-- **포트폴리오 알림**: 주문 발생 사이클 끝에 pre-order balance로 전송 (차선책)
-- **총 수익률**: `(portfolio_value - initial_balance) / initial_balance` — 주식 미실현 손익률 아님
-- **총 평가**: `tot_evlu_amt` = 주식 + 현금 합산 계좌 전체 가치
+- 체결 알림은 **실시간 체결통보 WebSocket(`ws.py` TODO)** 이 정석이나, 모의(vps)는 미체결 조회 미지원이라 폴링으로 충분. 실전 전환 시 WebSocket 구현 예정 — **지금은 보류**.
+- 예수금 표시(`telegram.py:95` `cash = portfolio_value - stocks_value`)는 **의도된 설계**(주식평가+예수금=총평가 불변식). `balance.cash` 직접 사용 제안은 철회 — 변경 안 함.
+- 유니버스 선정 기준: 전문 자료 연구 결과 **거래대금 상위 풀 → 가격/등락률/RVOL 필터 → 등락률(상승률) 1등 랭킹**. 테마·뉴스·차트타점·체결강도·호가는 자동화 불가로 한계 명시.
+- 보유 종목은 유니버스에서 빠져도 **매도 관리 위해 항상 포함**.
 
 ## 알아두어야 할 맥락
+- 환경 기본 `vps`(모의투자). `settings.is_paper` = `kis_env=="vps"`.
+- 매매 루프: `scripts/run_paper.py` → `PaperTrader._cycle()` (기본 20초 간격, 유니버스 5분 갱신).
+- runner.py에 **기존부터 있던 lint 경고**(I001 import 정렬, F401 `Strategy` 미사용) — 내 변경과 무관, 수술적 원칙으로 미수정.
+- 전략은 분봉 골든크로스(`make_strategy`: short=5, long=18). 동적 종목엔 종목별 튜닝 불가라 공통 윈도우 사용.
 
-- GitHub Secrets: `DOT_ENV`, `KIS_CONFIG_YAML`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- 모의투자 잔고 API: 주문 직후 빈 데이터 반환 (레이턴시 문제)
-- 코드 변경 후 반드시 Actions job 재시작 필요 (Cancel → workflow_dispatch 재실행)
-- `settings.initial_balance = 10_000_000` (.env의 `INITIAL_BALANCE`로 재정의 가능)
-
-## 다음 작업 제안
-
-1. **[주요] 단타형 전략 구현** — 동적 종목 선택 + 모멘텀/거래량 기반 + 스탑로스
-2. **[선택] 포트폴리오 정기 전송** — N분마다 전송해 주문 타이밍 의존성 제거
-3. **[선택] cron 자동 트리거** — 매 거래일 09:00 KST
+## 다음 작업 제안 (우선순위)
+1. **거래대금/RVOL 단위 확인 스크립트** → 임계값(`min_trade_value`, `min_rvol`) 활성화
+2. **종목별 손절/익절** RiskGuard에 추가 (단타 필수)
+3. 동적 유니버스 main 머지 (사용자 승인 후)
+4. 시총 하한·역배열 필터, 체결강도/호가 진입검증 (한계 항목 보강)
+5. 실전 전환 시 `ws.py` 실시간 체결통보 구현
 
 ## 관련 파일
-
-- [src/notify/telegram.py](src/notify/telegram.py) — 포트폴리오 알림 포맷
-- [src/scheduler/runner.py](src/scheduler/runner.py) — 주문 후 notify_portfolio 호출
-- [config/settings.py](config/settings.py) — initial_balance 추가
+- `src/data/universe.py` — UniverseProvider (신규, 선정 프로세스)
+- `src/signal/engine.py` — 팩토리 기반 동적 전략, `set_universe()`
+- `src/scheduler/runner.py` — `_refresh_universe()`, 체결 기준 알림
+- `src/execution/order_manager.py` — `sync_fills()` 체결 종목 반환
+- `src/notify/telegram.py` — 주문접수/체결 라벨, 포트폴리오 알림
+- `scripts/run_paper.py` — 동적 유니버스 배선
+- `tests/test_universe.py` — 신규 테스트
