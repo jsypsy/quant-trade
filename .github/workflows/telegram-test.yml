@@ -25,4 +25,7 @@ jobs:
           grep 'TELEGRAM' .env | sed 's/=\(.\{0,10\}\).*/=\1.../'
 
       - name: 텔레그램 테스트 발송
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scripts/test_telegram.py

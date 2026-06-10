@@ -45,6 +45,8 @@ jobs:
         if: steps.calc.outputs.skip == 'false'
         env:
           RUN_MINUTES: ${{ steps.calc.outputs.minutes }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scripts/run_paper.py
 
       - name: 최종 포트폴리오 현황
