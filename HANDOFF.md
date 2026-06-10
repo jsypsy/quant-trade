@@ -3,50 +3,53 @@ _Last updated: 2026-06-10_
 
 ## 이번 세션에서 완료한 것
 
-- **미국 주식(US) 코드 완전 제거** — 13개 파일에서 US 관련 코드 전부 삭제
-  - `src/utils/time.py` — `is_us_market_open`, `is_us_premarket_open` 및 US 시간 상수 제거
-  - `src/data/market.py` — `yfinance` import, US 버퍼/메서드 전부 제거, `us_client` 파라미터 제거
-  - `src/execution/order.py` — `_US_TR_ID`, `_EXCD_ORDER`, `_us_body()`, `market_type`/`excd` 필드 제거
-  - `src/execution/order_manager.py` — `submit()`에서 `market`, `excd` 파라미터 제거 (KR 하드코딩)
-  - `src/scheduler/runner.py` — `guard_us`, `_ALLOC_US`, US 분기 전부 제거, KR 전용으로 재작성
-  - `src/strategy/golden_cross.py` — `market_type`, `excd` 파라미터 제거
-  - `src/signal/engine.py` — US 분기 제거
-  - `config/settings.py` — `max_us_order_usd`, `max_us_position_pct` 제거
-  - `scripts/run_paper.py`, `run_backtest.py`, `compute_universe_metrics.py` — US 코드 전부 제거
-- **구 프로세스(PID 67334) 종료** — 구 코드로 돌던 봇 kill
+- **미커밋 코드 전체 커밋·푸시** — RiskGuard, BacktestEngine, AccountQuery, KISAuth 리팩터 등
+- **trades/ gitignore 추가**
+- **운영시간 수정** — 08:00~20:00(NXT) → 09:00~15:30(KRX 정규장만). KIS 모의투자 NXT 미지원 공식 확인
+- **GitHub Actions 자동매매 구축** — IP 차단 없음 확인 후 세 워크플로우 생성:
+  - `.github/workflows/trade.yml` — workflow_dispatch → 장마감(15:30)까지 자동 실행
+  - `.github/workflows/portfolio.yml` — 수동 포트폴리오 현황 조회
+  - `.github/workflows/kis-ip-test.yml` — IP 차단 여부 테스트용
+- **미체결 조회 endpoint 수정** — `inquire-nccs`(해외주식용, 404) → `inquire-psbl-rvsecncl`
+- **포트폴리오 리포트** — `scripts/portfolio_report.py` 생성. GITHUB_STEP_SUMMARY에 Markdown 테이블 출력
+- **Position/Balance 필드 확장** — 현재가·매입금액·평가손익·수익률 추가
+- **첫 완결 거래 성공** — KB금융(105560) BUY→SELL +480원
 
 ## 진행 중이거나 미완료
 
-### 🔲 봇 재시작 필요
-- `~/.local/bin/uv run python scripts/run_paper.py`로 신규 코드 기동 필요
-- 08:00 KST NXT 개장 이후 `[KR] 사이클 #1 시작` 로그 확인
+### 🔲 텔레그램 알림 미전송
+- 원인 미확인. 다음 실행 로그 시작에 `텔레그램 알림: 활성화/비활성화` 메시지가 찍힘
+- `비활성화`면 → GitHub Secret `DOT_ENV` 내 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` 재확인
+- `활성화`인데 안 오면 → Telegram API 응답 문제 (봇이 채팅방에 없거나 chat_id 오류)
 
-### 🔲 KR 첫 주문 미확인
-- 아직 신규 코드로 장 중 사이클 미실행
-- `[ORDER][KR] BUY XXXXXX` + `[OM] XXXXXX 체결 확인 — pending 제거` 메시지 확인 필요
+### 🔲 포트폴리오 5개 종목 보유 중
+- 현재 봇이 어떤 종목을 얼마나 보유하는지 확인 필요 (포트폴리오 워크플로우로 확인 가능)
 
 ## 핵심 결정 사항
 
-- **US 완전 제거** — 코드베이스에서 흔적 없이 삭제. 재추가 시 git log에서 복구 가능
-- **배분 비율**: `allocated = total_value` (KR 100%, US 50% 분리 개념 없음)
-- **`OrderManager.submit()`**: `market`, `excd` 파라미터 제거, "KR" 하드코딩
+- **GitHub Actions로 자동매매** — 맥 없이도 동작. `trade.yml` workflow_dispatch 트리거
+- **KIS 모의투자 NXT 미지원** — `is_market_open()` 09:00~15:30 고정
+- **미체결 조회 TR_ID**: `VTTC8036R`(vps) / `TTTC8036R`(prod), path: `inquire-psbl-rvsecncl`
+- **GitHub Secrets**: `KIS_CONFIG_YAML`(KIS 설정 YAML), `DOT_ENV`(.env 전체 내용)
 
 ## 알아두어야 할 맥락
 
 - KR 8종목 운용 중, 모의투자(vps), 장 중 20초 주기
-- NXT 포함 운영시간: 08:00~20:00 KST
-- KIS 미체결 TR_ID: `VTTC8036R`(vps) / `TTTC8036R`(prod)
-- `yfinance` 의존성은 `compute_universe_metrics.py`에서 KR 종목(.KS/.KQ) 조회에 여전히 사용
+- 초당 거래건수 초과(EGW00201) 재시도로 처리 중 — 큰 문제 없음
+- `uv` 경로: `~/.local/bin/uv`
 
 ## 다음 작업 제안
 
-1. **[즉시] 봇 재시작** — `~/.local/bin/uv run python scripts/run_paper.py &`
-2. **[장 중] 주문 로그 확인** — `tail -f logs/paper_run.log`
-3. **[선택] 유니버스 교체** — `compute_universe_metrics.py` 재실행 후 신규 종목 선정
+1. **[즉시] 텔레그램 알림 진단** — `trade.yml` 실행 후 시작 로그에서 "텔레그램 알림: ..." 확인
+2. **[선택] 포트폴리오 현황 확인** — `portfolio.yml` 실행 → Job Summary 탭에서 테이블 확인
+3. **[선택] EGW00201 스로틀링 개선** — 8종목 순차 조회 간 딜레이 늘리기
 
 ## 관련 파일
 
-- [src/scheduler/runner.py](src/scheduler/runner.py) — 메인 루프 (KR 전용)
-- [src/execution/order.py](src/execution/order.py) — KR 주문 + `get_unfilled_tickers()`
-- [src/execution/order_manager.py](src/execution/order_manager.py) — `sync_fills()` KIS 연동
-- [scripts/run_paper.py](scripts/run_paper.py) — 진입점, KR 8종목 유니버스
+- [.github/workflows/trade.yml](.github/workflows/trade.yml) — 자동매매 워크플로우
+- [.github/workflows/portfolio.yml](.github/workflows/portfolio.yml) — 포트폴리오 조회
+- [src/utils/time.py](src/utils/time.py) — 운영시간 09:00~15:30
+- [src/execution/order.py](src/execution/order.py) — 미체결 조회 endpoint 수정
+- [src/portfolio/account.py](src/portfolio/account.py) — Position/Balance 확장
+- [scripts/portfolio_report.py](scripts/portfolio_report.py) — Markdown 리포트
+- [src/notify/telegram.py](src/notify/telegram.py) — 알림 전송 + 응답 로깅
