@@ -16,6 +16,17 @@ from config.settings import settings
 
 _API = "https://api.telegram.org/bot{token}/sendMessage"
 
+_KR_NAMES: dict[str, str] = {
+    "005930": "삼성전자",
+    "000660": "SK하이닉스",
+    "035420": "NAVER",
+    "005380": "현대차",
+    "028260": "삼성물산",
+    "000270": "기아",
+    "055550": "신한지주",
+    "105560": "KB금융",
+}
+
 
 def _send(text: str) -> None:
     token = settings.telegram_bot_token
@@ -44,10 +55,12 @@ def notify_order(
 ) -> None:
     tag = "📋 DRY-RUN" if dry_run else "✅ 주문체결"
     price_str = f"{int(price):,}원"
+    side_kr = "매수" if side == "BUY" else "매도"
     emoji = "🟢" if side == "BUY" else "🔴"
+    name = _KR_NAMES.get(ticker, ticker)
     _send(
-        f"{tag} [{market}]\n"
-        f"{emoji} <b>{side}</b> {ticker} {qty}주 @ {price_str}\n"
+        f"{tag}\n"
+        f"{emoji} <b>{side_kr}</b> {name}({ticker}) {qty}주 @ {price_str}\n"
         f"주문번호: {order_no or '-'}"
     )
 
