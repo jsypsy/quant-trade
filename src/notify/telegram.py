@@ -79,12 +79,10 @@ def notify_portfolio(balance: Balance) -> None:
             f"  {sign}{p.pnl_rate:.1f}%"
         )
     lines.append("─────────────")
-    sign = "+" if balance.pnl >= 0 else ""
-    lines.append(
-        f"총 평가: {balance.portfolio_value:,}원"
-        f"  ({sign}{balance.pnl:,}원 / {sign}{balance.pnl_rate:.1f}%)"
-    )
-    lines.append(f"예수금: {balance.cash:,}원")
+    sign = "+" if balance.pnl_rate >= 0 else ""
+    lines.append(f"총 매입: {balance.purchase_amount:,}원")
+    lines.append(f"총 평가: {balance.portfolio_value:,}원")
+    lines.append(f"총 수익률: {sign}{balance.pnl_rate:.2f}%")
     _send("\n".join(lines))
 
 
