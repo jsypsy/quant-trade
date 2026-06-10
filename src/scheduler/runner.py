@@ -160,7 +160,12 @@ class PaperTrader:
                 results[ticker] = result
 
         self._manager.sync_fills()
-        if results and balance:
-            notify_portfolio(balance)
+        if results:
+            try:
+                balance = self._account.get_balance()
+            except Exception as exc:
+                logger.warning("주문 후 잔고 재조회 실패: {}", exc)
+            if balance:
+                notify_portfolio(balance)
         logger.info("━━ [KR] 사이클 #{} 완료 (주문={}건) ━━", self._cycle_no, len(results))
         return results
