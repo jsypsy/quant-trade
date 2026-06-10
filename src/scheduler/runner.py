@@ -161,6 +161,7 @@ class PaperTrader:
 
         self._manager.sync_fills()
         if results:
+            time.sleep(5)  # KIS 잔고 반영 대기
             try:
                 balance = self._account.get_balance()
             except Exception as exc:
