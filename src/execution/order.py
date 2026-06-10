@@ -18,7 +18,7 @@ from config.settings import settings
 from src.kis.client import KISClient
 
 _KR_ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
-_NCCS_PATH     = "/uapi/domestic-stock/v1/trading/inquire-nccs"
+_NCCS_PATH     = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
 _NCCS_TR_ID    = {"vps": "VTTC8036R", "prod": "TTTC8036R"}
 
 _KR_TR_ID: dict[tuple[str, str], str] = {
@@ -122,7 +122,7 @@ class OrderExecutor:
         params = {
             "CANO":           settings.account_no,
             "ACNT_PRDT_CD":   settings.account_product_code,
-            "INQR_DVSN_1":    "0",
+            "INQR_DVSN_1":    "1",
             "INQR_DVSN_2":    "0",
             "CTX_AREA_FK100": "",
             "CTX_AREA_NK100": "",
