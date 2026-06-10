@@ -21,6 +21,7 @@ class KISSettings(BaseSettings):
     kis_env: str = Field(default="vps")
     kis_config_path: str = Field(default="~/KIS/config/kis_devlp.yaml")
 
+    initial_balance: int = Field(default=10_000_000)
     max_daily_loss: int = Field(default=300_000)
     max_order_amount: int = Field(default=1_000_000)
     max_position_pct: float = Field(default=0.2)
