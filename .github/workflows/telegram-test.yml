@@ -18,5 +18,11 @@ jobs:
           DOT_ENV: ${{ secrets.DOT_ENV }}
         run: printf '%s' "$DOT_ENV" > .env
 
+      - name: .env 진단
+        run: |
+          echo "줄 수: $(wc -l < .env)"
+          echo "TELEGRAM 줄 목록:"
+          grep 'TELEGRAM' .env | sed 's/=.*/=***/'
+
       - name: 텔레그램 테스트 발송
         run: uv run python scripts/test_telegram.py
