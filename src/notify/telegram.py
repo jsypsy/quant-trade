@@ -5,14 +5,18 @@
   토큰이 없으면 조용히 스킵한다 (실패해도 매매 루프를 중단하지 않음).
 
 이벤트:
-  notify_order   — BUY/SELL 주문 제출 시
-  notify_kill    — 킬스위치(일손실 한도 초과) 시
-  notify_error   — 예기치 못한 오류 시
+  notify_order     — BUY/SELL 주문 제출 시
+  notify_portfolio — 사이클 종료 후 포트폴리오 현황
+  notify_kill      — 킬스위치(일손실 한도 초과) 시
+  notify_error     — 예기치 못한 오류 시
 """
+from __future__ import annotations
+
 import httpx
 from loguru import logger
 
 from config.settings import settings
+from src.portfolio.account import Balance
 
 _API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -63,6 +67,25 @@ def notify_order(
         f"{emoji} <b>{side_kr}</b> {name}({ticker}) {qty}주 @ {price_str}\n"
         f"주문번호: {order_no or '-'}"
     )
+
+
+def notify_portfolio(balance: Balance) -> None:
+    """주문 발생 후 포트폴리오 현황 요약 전송."""
+    lines = ["📊 <b>포트폴리오 현황</b>"]
+    for p in balance.positions:
+        sign = "+" if p.pnl >= 0 else ""
+        lines.append(
+            f"• {p.name}({p.ticker}) {p.qty}주"
+            f"  {sign}{p.pnl_rate:.1f}%"
+        )
+    lines.append("─────────────")
+    sign = "+" if balance.pnl >= 0 else ""
+    lines.append(
+        f"총 평가: {balance.portfolio_value:,}원"
+        f"  ({sign}{balance.pnl:,}원 / {sign}{balance.pnl_rate:.1f}%)"
+    )
+    lines.append(f"예수금: {balance.cash:,}원")
+    _send("\n".join(lines))
 
 
 def notify_kill(*, reason: str, daily_pnl: float) -> None:
