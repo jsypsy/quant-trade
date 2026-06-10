@@ -75,7 +75,7 @@ def notify_portfolio(balance: Balance) -> None:
     for p in balance.positions:
         sign = "+" if p.pnl >= 0 else ""
         lines.append(
-            f"• {p.name}({p.ticker}) {p.qty}주"
+            f"• {p.name} {p.qty}주 @ {p.avg_price:,}원"
             f"  {sign}{p.pnl_rate:.1f}%"
         )
     lines.append("─────────────")
