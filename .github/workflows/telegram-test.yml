@@ -21,8 +21,8 @@ jobs:
       - name: .env 진단
         run: |
           echo "줄 수: $(wc -l < .env)"
-          echo "TELEGRAM 줄 목록:"
-          grep 'TELEGRAM' .env | sed 's/=.*/=***/'
+          echo "TELEGRAM 줄 목록 (앞 10자만):"
+          grep 'TELEGRAM' .env | sed 's/=\(.\{0,10\}\).*/=\1.../'
 
       - name: 텔레그램 테스트 발송
         run: uv run python scripts/test_telegram.py
