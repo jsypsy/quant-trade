@@ -79,14 +79,18 @@ class OrderManager:
     def get_pending_tickers(self) -> set[str]:
         return set(self._pending)
 
-    def sync_fills(self) -> None:
-        """KIS 미체결 조회 후 체결 완료된 종목을 pending에서 제거한다."""
+    def sync_fills(self) -> set[str]:
+        """KIS 미체결 조회 후 체결 완료된 종목을 pending에서 제거한다.
+
+        이번 호출에서 새로 체결된 종목 집합을 반환한다 (없으면 빈 집합).
+        """
         if not self._pending:
-            return
+            return set()
         unfilled = self._executor.get_unfilled_tickers()
         if unfilled is None:
-            return  # API 실패 — 기존 목록 유지
+            return set()  # API 실패 — 기존 목록 유지
         filled = self._pending - unfilled
         for ticker in filled:
             logger.info("[OM] {} 체결 확인 — pending 제거", ticker)
         self._pending &= unfilled
+        return filled
