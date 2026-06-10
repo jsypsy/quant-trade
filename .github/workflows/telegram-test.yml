@@ -1,0 +1,23 @@
+name: 텔레그램 테스트
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create .env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: printf '%s' "$DOT_ENV" > .env
+
+      - name: 텔레그램 테스트 발송
+        run: |
+          source .env
+          RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="✅ GitHub Actions 텔레그램 테스트 성공")
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep -q '"ok":true' && echo "전송 성공" || echo "전송 실패"

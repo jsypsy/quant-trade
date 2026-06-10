@@ -131,6 +131,10 @@ class OrderExecutor:
             data = self._client.get(_NCCS_PATH, tr_id, params)
             return {row["pdno"] for row in data.get("output", []) if row.get("pdno")}
         except Exception as exc:
+            # 모의투자는 inquire-psbl-rvsecncl 미지원 → pending 강제 해제
+            if settings.is_paper and "90000000" in str(exc):
+                logger.info("[OM] 모의투자 미체결 조회 미지원 — pending 전체 해제")
+                return set()
             logger.warning("[OM] 미체결 조회 실패 — pending 유지: {}", exc)
             return None
 
