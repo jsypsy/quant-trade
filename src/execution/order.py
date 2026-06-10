@@ -30,8 +30,8 @@ _KR_TR_ID: dict[tuple[str, str], str] = {
 
 
 class OrderType(Enum):
-    LIMIT  = "01"   # 지정가 (기본)
-    MARKET = "00"   # 시장가 (명시적으로만)
+    LIMIT  = "00"   # 지정가 (기본)
+    MARKET = "01"   # 시장가 (명시적으로만)
 
 
 @dataclass

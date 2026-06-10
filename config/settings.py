@@ -25,6 +25,8 @@ class KISSettings(BaseSettings):
     max_daily_loss: int = Field(default=300_000)
     max_order_amount: int = Field(default=1_000_000)
     max_position_pct: float = Field(default=0.2)
+    stop_loss_pct: float = Field(default=2.0)    # 종목별 손절 한도 (%)
+    take_profit_pct: float = Field(default=4.0)  # 종목별 익절 기준 (%)
 
     dry_run: bool = Field(default=True)
 
