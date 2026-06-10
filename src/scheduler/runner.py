@@ -12,7 +12,7 @@ from loguru import logger
 
 from src.data.market import MarketData
 from src.execution.order_manager import OrderManager
-from src.notify.telegram import notify_error, notify_portfolio
+from src.notify.telegram import notify_error
 from src.utils.trade_log import log_trade
 from src.portfolio.account import AccountQuery, Balance
 from src.risk.guard import RiskContext, RiskGuard
@@ -160,7 +160,5 @@ class PaperTrader:
                 results[ticker] = result
 
         self._manager.sync_fills()
-        if results and balance:
-            notify_portfolio(balance)
         logger.info("━━ [KR] 사이클 #{} 완료 (주문={}건) ━━", self._cycle_no, len(results))
         return results
