@@ -51,6 +51,8 @@ def main() -> None:
     logger.info("환경: {}  dry_run={}  주기={}초", settings.kis_env, DRY_RUN, INTERVAL)
     if not DRY_RUN:
         logger.warning("⚠️  실제 모의 주문 모드 — KIS 에 주문이 전송됩니다.")
+    tg_ok = bool(settings.telegram_bot_token and settings.telegram_chat_id)
+    logger.info("텔레그램 알림: {}", "활성화" if tg_ok else "비활성화 (토큰/챗ID 미설정)")
 
     auth    = KISAuth()
     client  = KISClient(auth)

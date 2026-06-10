@@ -21,7 +21,7 @@ def _send(text: str) -> None:
     token = settings.telegram_bot_token
     chat_id = settings.telegram_chat_id
     if not token or not chat_id:
-        logger.debug("[TG] 토큰/챗ID 미설정 — 알림 스킵")
+        logger.warning("[TG] TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정 — 알림 스킵")
         return
     try:
         url = _API.format(token=token)
