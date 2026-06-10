@@ -72,12 +72,15 @@ def notify_order(
 def notify_portfolio(balance: Balance) -> None:
     """주문 발생 후 포트폴리오 현황 요약 전송."""
     lines = ["📊 <b>포트폴리오 현황</b>"]
-    for p in balance.positions:
-        sign = "+" if p.pnl >= 0 else ""
-        lines.append(
-            f"• {p.name} {p.qty}주 @ {p.avg_price:,}원"
-            f"  {sign}{p.pnl_rate:.1f}%"
-        )
+    if balance.positions:
+        for p in balance.positions:
+            sign = "+" if p.pnl >= 0 else ""
+            lines.append(
+                f"• {p.name} {p.qty}주 @ {p.avg_price:,}원"
+                f"  {sign}{p.pnl_rate:.1f}%"
+            )
+    else:
+        lines.append("보유 종목 없음")
     lines.append("─────────────")
     sign = "+" if balance.pnl_rate >= 0 else ""
     stocks_value = sum(p.current_value for p in balance.positions)
