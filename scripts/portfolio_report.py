@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.kis.auth import KISAuth
 from src.kis.client import KISClient
+from src.notify.telegram import notify_portfolio
 from src.portfolio.account import AccountQuery, Balance
 from src.utils.logging import setup_logging
 
@@ -70,6 +71,8 @@ def main() -> None:
     client = KISClient(auth)
     account = AccountQuery(client)
     balance = account.get_balance()
+
+    notify_portfolio(balance)
 
     md = build_markdown(balance)
     print(md)

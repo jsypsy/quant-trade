@@ -27,4 +27,7 @@ jobs:
           printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
 
       - name: 포트폴리오 조회
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scripts/portfolio_report.py
