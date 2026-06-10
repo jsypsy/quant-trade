@@ -17,7 +17,7 @@ from src.utils.trade_log import log_trade
 from src.portfolio.account import AccountQuery, Balance
 from src.risk.guard import RiskContext, RiskGuard
 from src.signal.engine import SignalEngine
-from src.strategy.base import Action, Strategy
+from src.strategy.base import Action, Signal, Strategy
 from src.utils.time import (
     is_market_open,
     seconds_until_open,
@@ -107,8 +107,10 @@ class PaperTrader:
 
         allocated = total_value
         position_values: dict[str, float] = {}
+        position_qtys: dict[str, int] = {}
         if balance:
             position_values = {p.ticker: float(p.current_value) for p in balance.positions}
+            position_qtys = {p.ticker: p.qty for p in balance.positions}
 
         if not self._engine._strategies:
             logger.info("[KR] 등록된 전략 없음")
@@ -125,6 +127,10 @@ class PaperTrader:
             if signal.action == Action.SELL and position_values.get(ticker, 0.0) <= 0:
                 logger.debug("[KR][{}] 보유 없음 — SELL 스킵", ticker)
                 continue
+
+            # SELL: 전략의 qty(=1 플레이스홀더)를 실제 보유 수량으로 교체
+            if signal.action == Action.SELL and ticker in position_qtys:
+                signal = Signal(signal.action, position_qtys[ticker], signal.reason)
 
             if signal.action == Action.HOLD:
                 log_trade(

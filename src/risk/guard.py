@@ -68,9 +68,9 @@ class RiskGuard:
 
         # ③ 수량 조정
         if signal.action == Action.BUY:
-            qty = self._adjusted_buy_qty(signal.qty, ctx)
+            qty = self._adjusted_buy_qty(ctx)
         else:
-            qty = signal.qty  # SELL: 보유 수량은 호출자가 결정, guard 는 그대로 통과
+            qty = signal.qty  # SELL: 보유 수량은 runner 에서 실제 보유량으로 주입
 
         if qty == 0:
             return self._reject(ticker, signal.action, "한도 적용 후 주문 수량 0")
@@ -84,7 +84,7 @@ class RiskGuard:
     # Private
     # ------------------------------------------------------------------
 
-    def _adjusted_buy_qty(self, requested: int, ctx: RiskContext) -> int:
+    def _adjusted_buy_qty(self, ctx: RiskContext) -> int:
         price = ctx.current_price
         if price <= 0:
             return 0
@@ -97,14 +97,8 @@ class RiskGuard:
         room = max(0.0, max_position_value - ctx.position_value)
         max_by_pct = int(room / price)
 
-        allowed = min(requested, max_by_amount, max_by_pct)
-
-        if allowed < requested:
-            logger.warning(
-                "[RISK] {} 수량 조정 {} → {} (금액한도={}, 비중한도={})",
-                "BUY", requested, allowed, max_by_amount, max_by_pct,
-            )
-
+        allowed = min(max_by_amount, max_by_pct)
+        logger.debug("[RISK] BUY 수량 결정: {} (금액한도={}, 비중한도={})", allowed, max_by_amount, max_by_pct)
         return max(0, allowed)
 
     def _reject(self, ticker: str, action: Action, reason: str) -> RiskDecision:
