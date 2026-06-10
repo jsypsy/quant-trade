@@ -1,10 +1,11 @@
 """모의투자 메인 루프 — 한국 주식.
 
 한 사이클:
-  1. 잔고 조회 → 배분 금액 산출
-  2. 전략 시그널 산출
-  3. RiskGuard 검증 → 주문 제출
-  4. sync_fills()
+  1. 잔고 조회 → 일일 손익 갱신 → 배분 금액 산출
+  2. 강제 청산 (손절/익절/장 마감) — 시장가
+  3. 전략 시그널 산출
+  4. RiskGuard 검증 → 주문 제출
+  5. sync_fills()
 """
 import time
 
@@ -12,15 +13,18 @@ from loguru import logger
 
 from src.data.market import MarketData
 from src.data.universe import UniverseProvider
+from src.execution.order import OrderType
 from src.execution.order_manager import OrderManager
 from src.notify.telegram import notify_error, notify_portfolio
 from src.utils.trade_log import log_trade
 from src.portfolio.account import AccountQuery, Balance
 from src.risk.guard import RiskContext, RiskGuard
+from src.risk.position_monitor import PositionMonitor
 from src.signal.engine import SignalEngine
 from src.strategy.base import Action, Signal, Strategy
 from src.utils.time import (
     is_market_open,
+    now_kst,
     seconds_until_open,
 )
 
@@ -37,6 +41,7 @@ class PaperTrader:
         order_manager: OrderManager,
         account: AccountQuery,
         universe: UniverseProvider,
+        position_monitor: PositionMonitor | None = None,
         interval: int = _DEFAULT_INTERVAL,
         universe_refresh_sec: int = 300,
     ) -> None:
@@ -46,9 +51,12 @@ class PaperTrader:
         self._manager   = order_manager
         self._account   = account
         self._universe  = universe
+        self._monitor   = position_monitor or PositionMonitor()
         self._interval  = interval
         self._universe_refresh_sec = universe_refresh_sec
         self._daily_pnl: float = 0.0
+        self._pnl_date = None                 # 일일 손익 기준일 (KST)
+        self._day_start_value: int = 0        # 장 시작 시점 총 평가금액 스냅샷
         self._cycle_no: int = 0
         self._universe_tickers: list[str] = []
         self._universe_ts: float = 0.0
@@ -118,37 +126,66 @@ class PaperTrader:
         self._cycle_no += 1
         logger.info("━━ [KR] 사이클 #{} 시작 ━━", self._cycle_no)
 
-        # 잔고 조회 + 배분
+        # 잔고 조회 — 실패 시 사이클 전체 스킵.
+        # (가짜 잔고로 매수하거나, 보유 정보 없이 SELL 이 전부 스킵되는 비대칭 방지)
         try:
             balance: Balance = self._account.get_balance()
-            total_value = balance.portfolio_value or 10_000_000
         except Exception as exc:
-            logger.warning("잔고 조회 실패 (fallback): {}", exc)
-            total_value = 10_000_000
-            balance = None
+            logger.warning("잔고 조회 실패 — 사이클 스킵: {}", exc)
+            return {}
 
-        allocated = total_value
-        position_values: dict[str, float] = {}
-        position_qtys: dict[str, int] = {}
-        if balance:
-            position_values = {p.ticker: float(p.current_value) for p in balance.positions}
-            position_qtys = {p.ticker: p.qty for p in balance.positions}
+        # 일일 손익 갱신 (당일 첫 잔고 스냅샷 대비, 미실현 포함) — 킬스위치 입력
+        today = now_kst().date()
+        if self._pnl_date != today:
+            self._pnl_date = today
+            self._day_start_value = balance.portfolio_value
+        self._daily_pnl = float(balance.portfolio_value - self._day_start_value)
+
+        allocated = balance.portfolio_value
+        position_values = {p.ticker: float(p.current_value) for p in balance.positions}
+        position_qtys = {p.ticker: p.qty for p in balance.positions}
+
+        # 강제 청산 (손절/익절/장 마감) — 전략 신호보다 우선, 시장가 제출
+        exit_results = {}
+        for exit_order in self._monitor.check(balance.positions):
+            ctx = RiskContext(
+                current_price=float(exit_order.price),
+                portfolio_value=allocated,
+                daily_pnl=self._daily_pnl,
+                pending_tickers=self._manager.get_pending_tickers(),
+                position_value=position_values.get(exit_order.ticker, 0.0),
+            )
+            decision = self._guard.check(
+                exit_order.ticker,
+                Signal(Action.SELL, exit_order.qty, exit_order.reason),
+                ctx,
+            )
+            result = self._manager.submit(
+                decision, float(exit_order.price), order_type=OrderType.MARKET,
+            )
+            if result and result.success:
+                exit_results[exit_order.ticker] = result
 
         # 유니버스 갱신 (보유 종목은 매도 관리 위해 항상 포함)
         self._refresh_universe(list(position_qtys.keys()))
 
         if not self._engine._strategies:
             logger.info("[KR] 유니버스 비어있음 — 스킵")
-            return {}
+            return exit_results
 
         # 시그널
         signals = self._engine.run()
 
         # 주문 제출
         pending = self._manager.get_pending_tickers()
-        results = {}
+        results = dict(exit_results)
+        eod = self._monitor.eod_active()
 
         for ticker, signal in signals.items():
+            if signal.action == Action.BUY and eod:
+                logger.info("[KR][{}] 장 마감 청산 구간 — 신규 매수 차단", ticker)
+                continue
+
             if signal.action == Action.SELL and position_values.get(ticker, 0.0) <= 0:
                 logger.debug("[KR][{}] 보유 없음 — SELL 스킵", ticker)
                 continue

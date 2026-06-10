@@ -28,6 +28,7 @@ class OrderManager:
         self,
         decision: RiskDecision,
         price: float,
+        order_type: OrderType = OrderType.LIMIT,
     ) -> OrderResult | None:
         """RiskDecision 을 받아 주문을 제출한다."""
         if not decision.approved or decision.action == Action.HOLD:
@@ -55,7 +56,7 @@ class OrderManager:
             side=decision.action.value,
             qty=decision.qty,
             price=price,
-            order_type=OrderType.LIMIT,
+            order_type=order_type,
         )
         result = self._executor.submit(req)
 
