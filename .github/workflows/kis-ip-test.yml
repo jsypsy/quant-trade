@@ -22,9 +22,11 @@ jobs:
           EOF
 
       - name: Create KIS config
+        env:
+          KIS_CONFIG: ${{ secrets.KIS_CONFIG_YAML }}
         run: |
           mkdir -p ~/KIS/config
-          echo "${{ secrets.KIS_CONFIG_YAML }}" > ~/KIS/config/kis_devlp.yaml
+          printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
 
       - name: Test — 토큰 발급 + 잔고 조회
         run: |
