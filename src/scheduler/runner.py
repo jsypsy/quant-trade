@@ -44,6 +44,7 @@ class PaperTrader:
         position_monitor: PositionMonitor | None = None,
         interval: int = _DEFAULT_INTERVAL,
         universe_refresh_sec: int = 300,
+        reentry_cooldown_sec: int = 300,
     ) -> None:
         self._engine    = signal_engine
         self._market    = market
@@ -54,12 +55,14 @@ class PaperTrader:
         self._monitor   = position_monitor or PositionMonitor()
         self._interval  = interval
         self._universe_refresh_sec = universe_refresh_sec
+        self._reentry_cooldown_sec = reentry_cooldown_sec
         self._daily_pnl: float = 0.0
         self._pnl_date = None                 # 일일 손익 기준일 (KST)
         self._day_start_value: int = 0        # 장 시작 시점 총 평가금액 스냅샷
         self._cycle_no: int = 0
         self._universe_tickers: list[str] = []
         self._universe_ts: float = 0.0
+        self._cooldown_until: dict[str, float] = {}   # ticker → 재진입 가능 시각(monotonic)
 
     # ------------------------------------------------------------------
     # Public
@@ -145,6 +148,8 @@ class PaperTrader:
         position_values = {p.ticker: float(p.current_value) for p in balance.positions}
         position_qtys = {p.ticker: p.qty for p in balance.positions}
 
+        now = time.monotonic()
+
         # 강제 청산 (손절/익절/장 마감) — 전략 신호보다 우선, 시장가 제출
         exit_results = {}
         for exit_order in self._monitor.check(balance.positions):
@@ -160,6 +165,8 @@ class PaperTrader:
                 Signal(Action.SELL, exit_order.qty, exit_order.reason),
                 ctx,
             )
+            if decision.approved:
+                self._cooldown_until[exit_order.ticker] = now + self._reentry_cooldown_sec
             result = self._manager.submit(
                 decision, float(exit_order.price), order_type=OrderType.MARKET,
             )
@@ -184,6 +191,11 @@ class PaperTrader:
         for ticker, signal in signals.items():
             if signal.action == Action.BUY and eod:
                 logger.info("[KR][{}] 장 마감 청산 구간 — 신규 매수 차단", ticker)
+                continue
+
+            # 재진입 쿨다운 — 최근 매도 종목의 BUY 차단
+            if signal.action == Action.BUY and now < self._cooldown_until.get(ticker, 0.0):
+                logger.info("[KR][{}] 재진입 쿨다운 — BUY 스킵", ticker)
                 continue
 
             if signal.action == Action.SELL and position_values.get(ticker, 0.0) <= 0:
@@ -216,6 +228,10 @@ class PaperTrader:
                 position_value=position_values.get(ticker, 0.0),
             )
             decision = self._guard.check(ticker, signal, ctx)
+
+            # 매도 승인 시 재진입 쿨다운 설정
+            if decision.approved and decision.action == Action.SELL:
+                self._cooldown_until[ticker] = now + self._reentry_cooldown_sec
 
             result = self._manager.submit(decision, current_price)
             if result and result.success:
