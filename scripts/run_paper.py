@@ -74,6 +74,7 @@ def main() -> None:
         interval=INTERVAL,
         universe_refresh_sec=UNIVERSE_REFRESH_SEC,
         reentry_cooldown_sec=settings.reentry_cooldown_sec,
+        trading_capital=settings.trading_capital,
     )
     trader.run(max_seconds=RUN_MINUTES * 60 if RUN_MINUTES else None)
 

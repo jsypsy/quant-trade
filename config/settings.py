@@ -22,9 +22,10 @@ class KISSettings(BaseSettings):
     kis_config_path: str = Field(default="~/KIS/config/kis_devlp.yaml")
 
     initial_balance: int = Field(default=50_000_000)
-    max_daily_loss: int = Field(default=3_000_000)    # 킬스위치 (full 사이징에 맞춰 완화)
-    max_order_amount: int = Field(default=50_000_000) # 1회 주문 한도 = 예수금 전액
-    max_position_pct: float = Field(default=1.0)       # 단일 종목 100% 허용 (몽땅)
+    trading_capital: int = Field(default=10_000_000)  # 봇 운용 자본 (계좌가 커도 이 한도로만 매매)
+    max_daily_loss: int = Field(default=1_000_000)    # 킬스위치 (운용자본 10%)
+    max_order_amount: int = Field(default=10_000_000) # 1회 주문 한도 = 운용자본
+    max_position_pct: float = Field(default=1.0)       # 단일 종목 100% 허용 (집중)
     stop_loss_pct: float = Field(default=2.0)    # 종목별 손절 한도 (%)
     take_profit_pct: float = Field(default=4.0)  # 종목별 익절 기준 (%)
     cross_band_pct: float = Field(default=0.0001)   # 크로스 최소 격차 (0.01%, 매우 공격적)

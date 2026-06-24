@@ -32,6 +32,17 @@ _DEFAULT_INTERVAL   = 300   # 장 중 주기 (초)
 _CLOSED_CHECK       = 60    # 장 외 대기 단위 (초)
 
 
+def _affordable_qty(capital: float, deployed: float, price: float) -> int:
+    """운용 자본 한도 내에서 추가 매수 가능한 수량.
+
+    capital: 운용 자본(trading_capital), deployed: 이미 투입된 평가금액 합.
+    """
+    if price <= 0:
+        return 0
+    room = capital - deployed
+    return max(0, int(room / price))
+
+
 class PaperTrader:
     def __init__(
         self,
@@ -45,6 +56,7 @@ class PaperTrader:
         interval: int = _DEFAULT_INTERVAL,
         universe_refresh_sec: int = 300,
         reentry_cooldown_sec: int = 300,
+        trading_capital: int = 10_000_000,
     ) -> None:
         self._engine    = signal_engine
         self._market    = market
@@ -56,6 +68,7 @@ class PaperTrader:
         self._interval  = interval
         self._universe_refresh_sec = universe_refresh_sec
         self._reentry_cooldown_sec = reentry_cooldown_sec
+        self._trading_capital = trading_capital
         self._daily_pnl: float = 0.0
         self._pnl_date = None                 # 일일 손익 기준일 (KST)
         self._day_start_value: int = 0        # 장 시작 시점 총 평가금액 스냅샷
@@ -150,6 +163,7 @@ class PaperTrader:
         allocated = balance.portfolio_value
         position_values = {p.ticker: float(p.current_value) for p in balance.positions}
         position_qtys = {p.ticker: p.qty for p in balance.positions}
+        deployed = sum(position_values.values())   # 이미 투입된 평가금액 합 (운용자본 한도 추적)
 
         now = time.monotonic()
 
@@ -231,6 +245,15 @@ class PaperTrader:
                 position_value=position_values.get(ticker, 0.0),
             )
             decision = self._guard.check(ticker, signal, ctx)
+
+            # 운용 자본 한도 — 총 투입액이 trading_capital 을 넘지 않도록 BUY 수량 제한
+            if decision.approved and decision.action == Action.BUY:
+                room_qty = _affordable_qty(self._trading_capital, deployed, current_price)
+                decision.qty = min(decision.qty, room_qty)
+                if decision.qty <= 0:
+                    logger.info("[KR][{}] 운용자본 한도 소진 — BUY 스킵", ticker)
+                    continue
+                deployed += decision.qty * current_price
 
             # 매도 승인 시 재진입 쿨다운 설정
             if decision.approved and decision.action == Action.SELL:
