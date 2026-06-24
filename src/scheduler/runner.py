@@ -87,7 +87,10 @@ class PaperTrader:
                 break
             except Exception as exc:
                 logger.error("루프 오류 (30초 후 재시도): {}", exc)
-                notify_error(context="메인 루프", error=str(exc))
+                try:
+                    notify_error(context="메인 루프", error=str(exc))
+                except Exception as nexc:
+                    logger.warning("에러 알림 전송 실패 — 무시: {}", nexc)
                 time.sleep(30)
 
     def run_once(self) -> dict:

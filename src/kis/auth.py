@@ -17,6 +17,7 @@ _DOMAINS = {
 }
 _MIN_REISSUE_INTERVAL = 60.0  # KIS: 1분 1회 재발급 제한
 _EXPIRY_BUFFER = 600           # 만료 10분 전 갱신
+_TOKEN_MAX_RETRIES = 3         # 토큰 발급 네트워크 오류 재시도
 _KST = zoneinfo.ZoneInfo("Asia/Seoul")
 
 
@@ -109,9 +110,7 @@ class KISAuth:
             "appsecret": self.app_secret,
         }
 
-        resp = httpx.post(url, json=body, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = self._post_token(url, body)
 
         self._last_issue_time = time.time()
 
@@ -120,6 +119,28 @@ class KISAuth:
 
         logger.info("KIS 액세스 토큰 발급 완료 (env={})", self._env)
         return data["access_token"]
+
+    def _post_token(self, url: str, body: dict[str, Any]) -> dict:
+        """토큰 발급 POST — 일시적 네트워크 오류 시 지수 백오프 재시도.
+
+        client.py 와 달리 토큰 발급은 재시도가 없어, 마감 직전 KIS 네트워크
+        타임아웃 한 번에 봇 전체가 죽던 문제를 방지한다.
+        """
+        for attempt in range(_TOKEN_MAX_RETRIES):
+            try:
+                resp = httpx.post(url, json=body, timeout=10)
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if attempt < _TOKEN_MAX_RETRIES - 1:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "토큰 발급 네트워크 오류, {}초 후 재시도 ({}/{}): {}",
+                        wait, attempt + 1, _TOKEN_MAX_RETRIES, exc,
+                    )
+                    time.sleep(wait)
+                    continue
+                raise
 
     def _wait_rate_limit(self) -> None:
         elapsed = time.time() - self._last_issue_time
