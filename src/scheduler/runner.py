@@ -163,7 +163,8 @@ class PaperTrader:
         allocated = balance.portfolio_value
         position_values = {p.ticker: float(p.current_value) for p in balance.positions}
         position_qtys = {p.ticker: p.qty for p in balance.positions}
-        deployed = sum(position_values.values())   # 이미 투입된 평가금액 합 (운용자본 한도 추적)
+        # 투입 원금(매입금액) 합 — 시드 한도 추적 (평가액 아님: 손실 종목 물타기 방지)
+        deployed = float(sum(p.purchase_amount for p in balance.positions))
 
         now = time.monotonic()
 
