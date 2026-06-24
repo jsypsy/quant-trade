@@ -2,6 +2,9 @@ name: 자동매매
 
 on:
   workflow_dispatch:
+  schedule:
+    # 평일 09:00 KST = 00:00 UTC (월~금). GitHub 스케줄러 사정으로 수 분 지연될 수 있음.
+    - cron: "0 0 * * 1-5"
 
 jobs:
   trade:
