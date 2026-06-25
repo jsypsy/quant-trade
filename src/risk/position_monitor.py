@@ -16,7 +16,9 @@ from config.settings import settings as _global_settings
 from src.portfolio.account import Position
 from src.utils.time import now_kst
 
-_EOD_EXIT = dtime(15, 20)
+# 15:10 — 접속매매(~15:20) 중에 청산해 즉시 체결시킨다.
+# 15:20 이후는 종가 동시호가라 15:30에야 체결돼 봇 종료 전 못 비워질 수 있음.
+_EOD_EXIT = dtime(15, 10)
 
 
 @dataclass
@@ -51,6 +53,11 @@ class PositionMonitor:
         exits: list[ExitOrder] = []
         for p in positions:
             if p.orderable_qty <= 0:
+                if eod and p.qty > 0:
+                    logger.warning(
+                        "[MONITOR] {} EOD 청산 불가 — 주문가능 0주 (미체결 묶임 추정, qty={})",
+                        p.ticker, p.qty,
+                    )
                 continue
             if eod:
                 reason = f"장 마감 청산 ({p.pnl_rate:+.2f}%)"

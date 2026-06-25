@@ -16,7 +16,7 @@ from src.kis.auth import KISAuth
 
 _RATE_LIMIT_CODE = "EGW00201"
 _MAX_RETRIES = 3
-_MIN_INTERVAL = 0.12   # ~8 req/s (모의투자 안전 마진 포함)
+_MIN_INTERVAL = 0.5    # ~2 req/s (모의투자 EGW00201 회피 — 모의는 초당 한도가 낮음)
 _RETRY_HTTP_CODES = {429, 500, 502, 503}
 
 

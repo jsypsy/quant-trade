@@ -31,9 +31,9 @@ from src.strategy.golden_cross import GoldenCrossStrategy
 from src.utils.logging import setup_logging
 
 DRY_RUN              = settings.dry_run
-INTERVAL             = int(os.getenv("INTERVAL_SEC", "20"))        # 20초 단타
+INTERVAL             = int(os.getenv("INTERVAL_SEC", "30"))        # 사이클 주기(초)
 RUN_MINUTES          = int(os.getenv("RUN_MINUTES", "0"))          # 0 = 무제한
-UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "20"))      # 동적 유니버스 종목 수
+UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "10"))      # 동적 유니버스 종목 수 (호출량 ↓)
 UNIVERSE_REFRESH_SEC = int(os.getenv("UNIVERSE_REFRESH_SEC", "300"))  # 5분마다 종목 재선정
 
 
