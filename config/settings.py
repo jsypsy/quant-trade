@@ -21,7 +21,7 @@ class KISSettings(BaseSettings):
     kis_env: str = Field(default="vps")
     kis_config_path: str = Field(default="~/KIS/config/kis_devlp.yaml")
 
-    initial_balance: int = Field(default=50_000_000)
+    initial_balance: int = Field(default=10_000_000)
     trading_capital: int = Field(default=10_000_000)  # 봇 운용 자본 (계좌가 커도 이 한도로만 매매)
     max_daily_loss: int = Field(default=1_000_000)    # 킬스위치 (운용자본 10%)
     max_order_amount: int = Field(default=10_000_000) # 1회 주문 한도 = 운용자본
