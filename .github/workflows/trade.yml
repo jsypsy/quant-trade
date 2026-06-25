@@ -3,8 +3,14 @@ name: 자동매매
 on:
   workflow_dispatch:
   schedule:
-    # 평일 09:00 KST = 00:00 UTC (월~금). GitHub 스케줄러 사정으로 수 분 지연될 수 있음.
+    # 평일 09:00 KST = 00:00 UTC (월~금). GitHub 스케줄러 사정으로 수 분~수 시간 지연될 수 있음.
     - cron: "0 0 * * 1-5"
+
+# 동시 실행 차단 — 봇 두 대가 같은 계좌에서 동시 매매하는 것 방지.
+# 스케줄이 지연돼 수동 실행과 겹쳐도, 새 실행이 기존 실행을 자동 취소한다.
+concurrency:
+  group: 자동매매
+  cancel-in-progress: true
 
 jobs:
   trade:
