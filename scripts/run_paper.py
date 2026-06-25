@@ -33,7 +33,7 @@ from src.utils.logging import setup_logging
 DRY_RUN              = settings.dry_run
 INTERVAL             = int(os.getenv("INTERVAL_SEC", "20"))        # 20초 단타
 RUN_MINUTES          = int(os.getenv("RUN_MINUTES", "0"))          # 0 = 무제한
-UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "10"))      # 동적 유니버스 종목 수
+UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "20"))      # 동적 유니버스 종목 수
 UNIVERSE_REFRESH_SEC = int(os.getenv("UNIVERSE_REFRESH_SEC", "300"))  # 5분마다 종목 재선정
 
 
