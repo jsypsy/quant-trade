@@ -2,6 +2,15 @@ name: KIS API IP Test
 
 on:
   workflow_dispatch:
+    inputs:
+      kis_env:
+        description: 'KIS 환경 (vps=모의, prod=실전). 주문 없이 연결만 검증.'
+        default: 'vps'
+        required: false
+        type: choice
+        options:
+          - vps
+          - prod
 
 jobs:
   test:
@@ -17,7 +26,7 @@ jobs:
       - name: Create .env
         run: |
           cat > .env <<EOF
-          KIS_ENV=vps
+          KIS_ENV=${{ inputs.kis_env || 'vps' }}
           DRY_RUN=true
           EOF
 
