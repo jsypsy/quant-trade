@@ -1,53 +1,46 @@
 # Session Handoff
-_Last updated: 2026-06-10_
+_Last updated: 2026-06-26_
 
-## 이번 세션에서 완료한 것
-
-- **시스템 전체 검수 (FABLE5_REVIEW.md 기반)**: 치명적 결함 5개 식별 — daily_pnl 미갱신(킬스위치 불능), 손절 부재, 잔고 실패 시 비대칭 동작, OrderType 코드 반전, 신호 유실(300s 루프 + 2봉 비교 구조)
-- **3대 안전장치 구현** (커밋 `abf5be2`, 푸시 완료):
-  - `src/risk/position_monitor.py` (신규): 손절 -2% / 익절 +4% / 15:20 EOD 전량 청산 — 시장가, 전략 신호보다 우선
-  - `daily_pnl` 실계산: 장 시작 스냅샷 기반, 킬스위치 실제 작동
-  - 잔고 조회 실패 시 사이클 전체 스킵 (fallback 1천만원 제거)
-- **OrderType 버그 수정**: LIMIT/MARKET 코드 반전 (`"01"`↔`"00"`) — dry_run=False 전환 시 실전 직결 버그
-- `config/settings.py`에 `stop_loss_pct=2.0`, `take_profit_pct=4.0` 추가 (.env로 재정의 가능)
-- `tests/test_position_monitor.py` 신규 (9케이스), 전체 pytest 22개 통과
+## 이번 세션에서 완료한 것 (전부 main 머지됨)
+- **whipsaw 방지**: 크로스 밴드(`cross_band_pct`) + 재진입 쿨다운 추가.
+- **네트워크 크래시 견고성**: `auth._issue_token` 토큰 발급에 재시도(지수 백오프). EOD 직전 타임아웃으로 봇이 죽던 문제 대응.
+- **동시 실행 차단**: `trade.yml`에 `concurrency: cancel-in-progress`. (스케줄 런이 지연돼 수동 런과 겹쳐 **봇 2대가 동시 매매**한 사고 발견·차단.)
+- **레이트리밋(EGW00201) 해소**: client `_MIN_INTERVAL` 0.12→0.5(초당 2회), 유니버스 top10, 사이클 30초.
+- **EOD 청산 15:20→15:10**: 접속매매 중 청산해 즉시 체결(15:20 이후는 종가 동시호가라 봇 종료 전 체결 안 됨).
+- **운용자본 한도** `trading_capital`(1천만): 계좌가 커도 매입원금 기준 1천만까지만 매매. 수익 재투입 안 함(시드 고정).
+- **신규 1천만 모의계좌(50194921)로 전환**: 5천만 계좌의 숫자 혼란 제거. 인증 테스트 통과(예수금 1천만 확인).
+- **IP 테스트 파라미터화**: `kis-ip-test.yml`에 `kis_env`(vps/prod) 입력 + 실패 시 KIS 응답 본문 출력.
+- 평일 09:00 스케줄 추가(단 **불안정 — 지연/누락 잦음**).
 
 ## 진행 중이거나 미완료
-
-- **신호 유실 문제 미수정**: 300s 루프에서 1분봉 마지막 2봉만 비교 → 크로스 80% 유실. 루프를 60s로 낮추고 `ohlcv.iloc[:-1]`(완성봉)만 쓰도록 수정 필요 (체크리스트 4번)
-- **미체결 주문 관리 미구현**: `sync_fills()` 부분체결 오인, 취소 TR 없음 (체크리스트 5번)
-- **`_pending` 영속화 미구현**: 재시작 시 중복 주문 위험 (체크리스트 6번)
-- **유니버스 등락률 상한 밴드 미적용**: 과열 종목 추격 차단 (`max_change_rate` 파라미터 추가 필요)
-- **`acml_tr_pbmn`/`vol_inrt` 단위 확인 및 필터 활성화** (체크리스트 7번)
-- **백테스트 없음**: 분봉 데이터 적재 → 전략 수익성 검증 (체크리스트 8번)
+- **오늘(6/26) 모의 검증 진행 중** — 런 #22 실행 중(밴드 0.1%, 09:25 시작). **오늘 핵심 확인 2가지**: ① 레이트리밋 사라졌나 ② **15:10 EOD 청산이 진짜 되나**(이틀 연속 실패한 그것 — 오늘이 첫 제대로 된 검증).
+- **EOD 청산은 아직 한 번도 성공 못 함**: 6/24 크래시(15:29), 6/25 ghost 포지션(레이트리밋→미체결 묶임, 종가 동시호가가 우연히 정리). 오늘 15:10이 진짜 시험대.
+- **실전(prod) 막힘**: 실전 앱키가 **무효**(EGW00103 "유효하지 않은 AppKey"). 유저가 기존 실전 앱키를 **해지했는데 KIS 포털 재발급이 "이미 신청"으로 막힘**. → **KIS 고객센터로 풀어야 함**. 코드·변수명은 검증 완료(정상), 오직 유효한 실전 앱키만 없음.
 
 ## 핵심 결정 사항
-
-- 강제 청산(손절/익절/EOD)은 별도 `PositionMonitor` 모듈로 분리, runner에서 전략 신호보다 먼저 실행
-- 청산 주문은 시장가 — 지정가 미체결로 손실 확대 방지
-- 잔고 조회 실패 시 "아무것도 하지 않는다" — 매수/매도 모두 차단
-- `daily_pnl`은 미실현 손익 포함한 포트폴리오 전체 기준 (개별 체결 추적 불필요)
+- **밴드 값 튜닝 이력**: 0.2%(거래 0건, 너무 보수) → 0.01%(폭주·수수료 27만 출혈) → **0.1%(중간, 검증용 현재값)**. 0.1%에서 거래 추이 보고 재조정.
+- **공격적 설정은 역효과**로 판명: 6/25 오후 과매매 + 이중봇으로 수수료만 까먹음(순익 +27,913 그쳐). "많이 매매 ≠ 더 벌기".
+- 수익 측정은 **순자산(자산증감) 기준**이 진실. 금일실현손익엔 전일 평가이익이 섞여 부풀려짐.
+- **실전 IP는 안 막힘**(prod 토큰 발급됨) — GitHub Actions로 실전 자동매매 기술적으로 가능(앱키만 유효하면).
 
 ## 알아두어야 할 맥락
-
-- 현재 `dry_run=True`가 기본 — 모의투자 실주문은 `DRY_RUN=false` 환경변수 필요
-- `PositionMonitor` 강제 청산도 `dry_run=True`면 로그만 남기고 KIS에 전송 안 됨
-- KRX `ORD_DVSN`: `"00"` = 지정가, `"01"` = 시장가 (이전 코드가 반전되어 있었음, 수정됨)
-- 실전 전환 전 체크리스트 잔여 항목(4~8번) 중 최소 4~6번이 완료 조건
+- 환경: GitHub Actions로 실행. 스케줄 불안정 → **매일 아침 수동 트리거**(`trade.yml`, ref main). 동시실행 차단 있어 겹쳐도 1대만.
+- 시크릿: `KIS_CONFIG_YAML`(yaml) + `DOT_ENV`(KIS_ENV=vps, DRY_RUN=false). **유저가 직접 편집**(나는 못 봄/못 고침). **둥근따옴표 주의**(여러 번 사고남).
+- 계좌: 모의=50194921(1천만 시드), 실전=44757328(앱키 무효).
+- 운영 팁: 실행 중 런 로그는 API로 404(완료돼야 읽힘). `actions_list` 출력이 거대 → 저장된 파일을 python으로 파싱. 잔고조회 500/403은 client 재시도 로그의 "응답 본문"에 KIS 실제 메시지 있음.
+- KIS 모의/실전은 **계좌별로 앱키가 따로** (새 계좌=새 앱키).
 
 ## 다음 작업 제안 (우선순위)
+1. **오늘 마감(15:10/15:30) 후 런 #22 검증**: EOD 청산 됐나(보유 0), 레이트리밋 없나, 순손익. → 이게 통과해야 실전 자격.
+2. **실전 앱키 KIS 고객센터로 해결** → `kis-ip-test` `kis_env=prod`로 연결 검증(예수금 떠야 정상).
+3. 밴드 0.1% 거래 추이 보고 미세조정(너무 잦으면 ↑, 없으면 ↓ 0.05%).
+4. EOD 안정 + 모의 며칠 수익 확인 → **소액 실전**(trading_capital 작게, 안전장치 유지).
 
-1. **루프 60s + 완성봉만 사용** — `runner.py` `_DEFAULT_INTERVAL=60`, `engine.py`에서 `ohlcv.iloc[:-1]` (영향 큰 1일 작업)
-2. **유니버스 `max_change_rate` 필터** — `universe.py` `_select()` 한 줄 추가, 과열 추격 차단
-3. **`_pending` 영속화** — 재시작 안전, 10줄 작업
-4. `sync_fills()` 수량 기반 비교 + 주문 취소 TR 추가
-5. 모의투자로 손절/EOD 실제 발동 확인 후 실전 전환 검토
-
-## 관련 파일
-
-- `src/risk/position_monitor.py` — 신규: 강제 청산 로직
-- `src/scheduler/runner.py` — daily_pnl 실계산, 사이클 스킵, 강제 청산 연결
-- `src/execution/order.py` — OrderType 버그 수정
-- `src/execution/order_manager.py` — submit()에 order_type 파라미터 추가
-- `config/settings.py` — stop_loss_pct, take_profit_pct 추가
-- `tests/test_position_monitor.py` — 신규 테스트
+## 관련 파일 (이번 세션 주요 수정, 모두 main)
+- `config/settings.py` — trading_capital·band·cooldown·stop/take·initial_balance(1천만)
+- `src/kis/auth.py` — 토큰 재시도 / `src/kis/client.py` — throttle 0.5
+- `src/risk/position_monitor.py` — EOD 15:10, 주문가능0 경고
+- `src/scheduler/runner.py` — 쿨다운, 운용자본 캡(매입원금 기준), 에러핸들러 방어
+- `scripts/run_paper.py` — 배선(band·cooldown·trading_capital·top10·30초·MA 5/18)
+- `.github/workflows/trade.yml` — 스케줄 + concurrency / `kis-ip-test.yml` — kis_env 입력·에러본문
+- `tests/` — test_strategy.py(밴드), test_auth.py(토큰재시도), test_runner.py(자본한도) 추가
