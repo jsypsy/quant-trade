@@ -62,7 +62,11 @@ def main() -> None:
     executor = OrderExecutor(client, dry_run=DRY_RUN)
     manager  = OrderManager(executor)
     engine   = SignalEngine(make_strategy, market)
-    universe = UniverseProvider(client, market=MARKET_KOSPI, top_n=UNIVERSE_TOP_N)
+    universe = UniverseProvider(
+        client, market=MARKET_KOSPI, top_n=UNIVERSE_TOP_N,
+        pool_size=30,             # 거래대금 풀 확대(필터 후 후보 확보)
+        min_change_rate=2.0,      # 모멘텀 필터 ON — 등락률 +2% 이상(실제 오르는 종목만)
+    )
 
     trader = PaperTrader(
         signal_engine=engine,
