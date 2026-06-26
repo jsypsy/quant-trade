@@ -151,6 +151,42 @@ cd quant-trade
 
 ---
 
+## GitHub Actions 시크릿 (클라우드 실행)
+
+봇은 GitHub Actions(`.github/workflows/`)에서 실행됩니다. 비밀값은 저장소
+**Settings → Secrets and variables → Actions** 에 등록하며, 코드·`.env`·커밋에 직접 넣지 않습니다.
+
+| 시크릿 | 용도 | 형식 |
+|--------|------|------|
+| `DOT_ENV` | 실행 설정 (`.env` 내용) | 아래 예시 |
+| `KIS_CONFIG_YAML` | KIS 계정 (앱키·시크릿·계좌) | `kis_devlp.yaml` 전체 내용 |
+| `TELEGRAM_CONFIG` | 텔레그램 알림 (토큰 + 챗ID) | 아래 예시 |
+
+### `DOT_ENV` 예시
+```
+KIS_ENV=vps
+DRY_RUN=false
+KR_EXCHANGE=KRX
+MAX_DAILY_LOSS=1000000
+MAX_ORDER_AMOUNT=6000000
+```
+- `KIS_ENV`: `vps`(모의) / `prod`(실전)
+- `KR_EXCHANGE`: `KRX`(정규장) / `SOR`·`NXT`(넥스트레이드 통합·애프터마켓, **prod 전용**)
+- `DRY_RUN`: `true`(주문 안 보냄) / `false`(실제 주문)
+- `MAX_*`: 리스크 한도 (미지정 시 코드 기본값 사용)
+
+### `TELEGRAM_CONFIG` 예시
+```
+TELEGRAM_BOT_TOKEN=<BotFather 봇 토큰>
+TELEGRAM_CHAT_ID=<챗 ID 숫자>
+```
+> 토큰·챗ID를 한 시크릿으로 관리. 워크플로우가 `.env`에 병합해 사용합니다.
+> 미설정 시 텔레그램 알림만 비활성화되고 매매는 정상 동작합니다.
+
+> ⚠️ 시크릿 값(토큰·앱키·계좌)은 README·코드·커밋·로그에 **절대 노출 금지**.
+
+---
+
 ## 주의
 
 - 자동매매는 실제 금전 손실 위험이 있습니다.
