@@ -19,6 +19,12 @@ from src.utils.time import now_kst
 # 15:10 — 접속매매(~15:20) 중에 청산해 즉시 체결시킨다.
 # 15:20 이후는 종가 동시호가라 15:30에야 체결돼 봇 종료 전 못 비워질 수 있음.
 _EOD_EXIT = dtime(15, 10)
+# NXT 애프터마켓(마감 20:00) 모드는 19:50 청산.
+_EOD_EXIT_NXT = dtime(19, 50)
+
+
+def _default_eod_exit() -> dtime:
+    return _EOD_EXIT_NXT if _global_settings.is_nxt else _EOD_EXIT
 
 
 @dataclass
@@ -34,7 +40,7 @@ class PositionMonitor:
         self,
         stop_loss_pct: float | None = None,
         take_profit_pct: float | None = None,
-        eod_exit: dtime = _EOD_EXIT,
+        eod_exit: dtime | None = None,
     ) -> None:
         self.stop_loss_pct = (
             stop_loss_pct if stop_loss_pct is not None else _global_settings.stop_loss_pct
@@ -42,7 +48,7 @@ class PositionMonitor:
         self.take_profit_pct = (
             take_profit_pct if take_profit_pct is not None else _global_settings.take_profit_pct
         )
-        self.eod_exit = eod_exit
+        self.eod_exit = eod_exit if eod_exit is not None else _default_eod_exit()
 
     def eod_active(self, now: datetime | None = None) -> bool:
         """장 마감 청산 구간 여부. 이 구간에는 신규 매수도 차단해야 한다."""

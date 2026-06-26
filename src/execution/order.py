@@ -4,10 +4,11 @@ dry_run=True(기본) 이면 API 를 호출하지 않고 로그만 남긴다.
 실제 주문은 dry_run=False 로 명시해야 한다.
 
 TR_ID (모의/실전 × 매수/매도):
-  vps  BUY  → VTTC0802U
-  vps  SELL → VTTC0801U
-  prod BUY  → TTTC0802U
-  prod SELL → TTTC0801U
+  KRX 단독(구버전):  vps BUY VTTC0802U · SELL VTTC0801U / prod BUY TTTC0802U · SELL TTTC0801U
+  NXT/SOR(신버전):   vps BUY VTTC0012U · SELL VTTC0011U / prod BUY TTTC0012U · SELL TTTC0011U
+                     + body 에 EXCG_ID_DVSN_CD(KRX/NXT/SOR)·SLL_TYPE·CNDT_PRIC 필요.
+
+거래소(EXCG_ID_DVSN_CD)는 settings.exchange_id 로 결정한다. 모의(vps)는 NXT 미지원 → 항상 KRX.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -26,6 +27,14 @@ _KR_TR_ID: dict[tuple[str, str], str] = {
     ("vps",  "SELL"): "VTTC0801U",
     ("prod", "BUY"):  "TTTC0802U",
     ("prod", "SELL"): "TTTC0801U",
+}
+
+# NXT/SOR(통합) 주문용 신버전 TR_ID. body 에 EXCG_ID_DVSN_CD 포함 필수.
+_KR_TR_ID_NXT: dict[tuple[str, str], str] = {
+    ("vps",  "BUY"):  "VTTC0012U",
+    ("vps",  "SELL"): "VTTC0011U",
+    ("prod", "BUY"):  "TTTC0012U",
+    ("prod", "SELL"): "TTTC0011U",
 }
 
 
@@ -81,12 +90,14 @@ class OrderExecutor:
 
     def _send(self, req: OrderRequest) -> OrderResult:
         key = (settings.kis_env, req.side)
-        tr_id = _KR_TR_ID.get(key)
+        tr_map = _KR_TR_ID_NXT if settings.is_nxt else _KR_TR_ID
+        tr_id = tr_map.get(key)
         if tr_id is None:
             raise ValueError(f"TR_ID 미정의: env={settings.kis_env}, side={req.side}")
+        body = self._kr_body_nxt(req) if settings.is_nxt else self._kr_body(req)
 
         try:
-            data = self._client.post(_KR_ORDER_PATH, tr_id, self._kr_body(req))
+            data = self._client.post(_KR_ORDER_PATH, tr_id, body)
             order_no = data.get("output", {}).get("ODNO", "")
             logger.info("[ORDER][KR] {} {} {}주 → 주문번호 {}", req.side, req.ticker, req.qty, order_no)
             return OrderResult(
@@ -109,6 +120,14 @@ class OrderExecutor:
             "ORD_QTY":      str(req.qty),
             "ORD_UNPR":     str(int(req.price)) if req.order_type == OrderType.LIMIT else "0",
         }
+
+    def _kr_body_nxt(self, req: OrderRequest) -> dict:
+        """NXT/SOR(통합) 주문 body. KRX body + 거래소구분·매도유형·조건가격."""
+        body = self._kr_body(req)
+        body["EXCG_ID_DVSN_CD"] = settings.exchange_id   # KRX | NXT | SOR
+        body["SLL_TYPE"] = ""                             # 일반 매도/매수 (공매도 아님)
+        body["CNDT_PRIC"] = ""                            # 조건가 (조건부지정가만 사용)
+        return body
 
     def get_unfilled_tickers(self) -> set[str] | None:
         """KIS 미체결 조회 → 현재 미체결 종목 코드 집합 반환.

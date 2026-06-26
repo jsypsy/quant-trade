@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from config.settings import settings
 from src.kis.client import KISClient
 from src.kis.models import CurrentPriceOutput, OHLCVItem
 
@@ -38,7 +39,7 @@ class MarketData:
         data = self._client.get(
             _PRICE_PATH,
             _PRICE_TR_ID,
-            params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": ticker},
+            params={"FID_COND_MRKT_DIV_CODE": settings.market_div_code, "FID_INPUT_ISCD": ticker},
         )
         return CurrentPriceOutput(**data["output"])
 
@@ -67,7 +68,7 @@ class MarketData:
             _MINUTE_TR_ID,
             params={
                 "FID_ETC_CLS_CODE": "0",
-                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_COND_MRKT_DIV_CODE": settings.market_div_code,
                 "FID_INPUT_ISCD": ticker,
                 "FID_INPUT_HOUR_1": now_str,
                 "FID_PW_DATA_INCU_YN": "Y",

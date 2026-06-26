@@ -21,6 +21,10 @@ class KISSettings(BaseSettings):
     kis_env: str = Field(default="vps")
     kis_config_path: str = Field(default="~/KIS/config/kis_devlp.yaml")
 
+    # 주문/시세 거래소. KRX(기본) | NXT(넥스트레이드) | SOR(최선주문집행).
+    # NXT/SOR → 통합시세(UN) + 애프터마켓(~20:00). 모의(vps)는 NXT 미지원 → 항상 KRX 강제.
+    kr_exchange: str = Field(default="KRX")
+
     initial_balance: int = Field(default=10_000_000)
     trading_capital: int = Field(default=10_000_000)  # 봇 운용 자본 (계좌가 커도 이 한도로만 매매)
     max_daily_loss: int = Field(default=1_000_000)    # 킬스위치 (운용자본 10%)
@@ -49,6 +53,28 @@ class KISSettings(BaseSettings):
         if self.kis_env not in _DOMAINS:
             raise ValueError(f"KIS_ENV must be 'vps' or 'prod', got '{self.kis_env}'")
         return _DOMAINS[self.kis_env]
+
+    # ------------------------------------------------------------------
+    # 거래소 (KRX / NXT / SOR) — 주문 라우팅·시세·운영시간 결정
+    # ------------------------------------------------------------------
+
+    @property
+    def exchange_id(self) -> str:
+        """주문 거래소구분(EXCG_ID_DVSN_CD). 모의(vps)는 NXT 미지원 → KRX 강제."""
+        if self.is_paper:
+            return "KRX"
+        code = self.kr_exchange.upper()
+        return code if code in ("KRX", "NXT", "SOR") else "KRX"
+
+    @property
+    def is_nxt(self) -> bool:
+        """NXT/SOR(통합시세·애프터마켓) 모드 여부."""
+        return self.exchange_id in ("NXT", "SOR")
+
+    @property
+    def market_div_code(self) -> str:
+        """시세 FID_COND_MRKT_DIV_CODE. KRX→J, NXT/SOR→UN(통합)."""
+        return "UN" if self.is_nxt else "J"
 
     # ------------------------------------------------------------------
     # YAML 계정 정보 (lazy load, 1회 파싱)
