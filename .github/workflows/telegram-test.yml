@@ -16,7 +16,10 @@ jobs:
       - name: Create .env
         env:
           DOT_ENV: ${{ secrets.DOT_ENV }}
-        run: printf '%s' "$DOT_ENV" > .env
+          TELEGRAM_CONFIG: ${{ secrets.TELEGRAM_CONFIG }}
+        run: |
+          printf '%s\n' "$DOT_ENV" > .env
+          printf '%s\n' "$TELEGRAM_CONFIG" >> .env
 
       - name: .env 진단
         run: |
@@ -25,7 +28,4 @@ jobs:
           grep 'TELEGRAM' .env | sed 's/=\(.\{0,10\}\).*/=\1.../'
 
       - name: 텔레그램 테스트 발송
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scripts/test_telegram.py

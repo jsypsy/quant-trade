@@ -26,7 +26,11 @@ jobs:
       - name: Create .env
         env:
           DOT_ENV: ${{ secrets.DOT_ENV }}
-        run: printf '%s' "$DOT_ENV" > .env
+          TELEGRAM_CONFIG: ${{ secrets.TELEGRAM_CONFIG }}
+        run: |
+          # DOT_ENV(설정) + TELEGRAM_CONFIG(토큰·챗ID 한 시크릿) 병합. 줄바꿈으로 분리.
+          printf '%s\n' "$DOT_ENV" > .env
+          printf '%s\n' "$TELEGRAM_CONFIG" >> .env
 
       - name: Create KIS config
         env:
@@ -63,8 +67,6 @@ jobs:
         if: steps.calc.outputs.skip == 'false'
         env:
           RUN_MINUTES: ${{ steps.calc.outputs.minutes }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scripts/run_paper.py
 
       - name: 최종 포트폴리오 현황
