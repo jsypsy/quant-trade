@@ -38,7 +38,16 @@ jobs:
       - name: 장마감까지 남은 시간 계산
         id: calc
         run: |
-          CLOSE=$(TZ=Asia/Seoul date -d "today 15:30:00" +%s)
+          # 마감 시각 = 거래소별. prod + NXT/SOR → 20:00(애프터마켓), 그 외 → 15:30(KRX 정규장).
+          EXCH=$(grep -E '^KR_EXCHANGE=' .env | cut -d= -f2 | tr -d '[:space:]' | tr a-z A-Z)
+          ENV=$(grep -E '^KIS_ENV=' .env | cut -d= -f2 | tr -d '[:space:]')
+          if [ "$ENV" = "prod" ] && { [ "$EXCH" = "SOR" ] || [ "$EXCH" = "NXT" ]; }; then
+            CLOSE_HM="20:00:00"
+          else
+            CLOSE_HM="15:30:00"
+          fi
+          echo "마감 시각: $CLOSE_HM (KIS_ENV=$ENV, KR_EXCHANGE=${EXCH:-KRX})"
+          CLOSE=$(TZ=Asia/Seoul date -d "today $CLOSE_HM" +%s)
           NOW=$(date +%s)
           REMAINING=$(( (CLOSE - NOW) / 60 ))
           if [ "$REMAINING" -le 0 ]; then
