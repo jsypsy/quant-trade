@@ -1,0 +1,54 @@
+name: NXT 시세 검증
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create .env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: printf '%s\n' "$DOT_ENV" > .env
+
+      - name: Create KIS config
+        env:
+          KIS_CONFIG: ${{ secrets.KIS_CONFIG_YAML }}
+        run: |
+          mkdir -p ~/KIS/config
+          printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
+
+      - name: NXT 통합시세 조회 (주문 없음)
+        run: |
+          uv run python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, ".")
+          from config.settings import settings
+          from src.kis.auth import KISAuth
+          from src.kis.client import KISClient
+          from src.data.market import MarketData
+
+          print(f"env={settings.kis_env}  거래소={settings.exchange_id}  시세div={settings.market_div_code}")
+          client = KISClient(KISAuth())
+          md = MarketData(client)
+
+          for tk, name in [("000660", "SK하이닉스"), ("005930", "삼성전자")]:
+              cp = md.get_current_price(tk)
+              print(f"\n=== {name}({tk}) ===")
+              print(f"현재가: {int(cp.stck_prpr):,}원")
+              df = md.get_minute_ohlcv(tk, cnt=5)
+              if df.empty:
+                  print("분봉 없음")
+              else:
+                  for _, r in df.iterrows():
+                      print(f"  {r['date']}  종가 {int(r['close']):,}  거래량 {int(r['volume']):,}")
+          print("\n시세 조회 완료 — 위 시각이 15:30 이후면 NXT 애프터마켓 실시간.")
+          PYEOF
