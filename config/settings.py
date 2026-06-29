@@ -32,8 +32,8 @@ class KISSettings(BaseSettings):
     max_position_pct: float = Field(default=1.0)       # 단일 종목 100% 허용 (집중)
     stop_loss_pct: float = Field(default=2.0)    # 종목별 손절 한도 (%)
     take_profit_pct: float = Field(default=4.0)  # 종목별 익절 기준 (%)
-    cross_band_pct: float = Field(default=0.003)    # 크로스 최소 격차 (0.3%, 휘소·과매매 억제 데드존)
-    reentry_cooldown_sec: int = Field(default=180)  # 매도 후 재진입 금지 (초)
+    cross_band_pct: float = Field(default=0.001)    # 크로스 최소 격차 (0.1%, 중간 — 노이즈 억제+거래 유지)
+    reentry_cooldown_sec: int = Field(default=120)  # 매도 후 재진입 금지 (초)
 
     dry_run: bool = Field(default=True)
 
