@@ -1,0 +1,56 @@
+name: 유니버스 진단
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create .env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: printf '%s\n' "$DOT_ENV" > .env
+
+      - name: Create KIS config
+        env:
+          KIS_CONFIG: ${{ secrets.KIS_CONFIG_YAML }}
+        run: |
+          mkdir -p ~/KIS/config
+          printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
+
+      - name: 유니버스 선정 진단 (주문 없음)
+        run: |
+          uv run python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, ".")
+          from config.settings import settings
+          from src.kis.auth import KISAuth
+          from src.kis.client import KISClient
+          from src.data.universe import UniverseProvider, MARKET_KOSPI
+
+          print(f"env={settings.kis_env}  거래소={settings.exchange_id}")
+          client = KISClient(KISAuth())
+          prov = UniverseProvider(
+              client, market=MARKET_KOSPI, top_n=10, pool_size=30, min_change_rate=2.0,
+          )
+          pool = prov._fetch_pool()
+          print(f"\n거래대금 상위 {len(pool)}종목 (등락률순 정렬):")
+          for s in sorted(pool, key=lambda x: x.change_rate, reverse=True):
+              mark = "  ✅+2%" if s.change_rate >= 2.0 else ""
+              print(f"  {s.change_rate:+6.2f}%  {s.name}({s.ticker})  {s.price:,}원{mark}")
+
+          up2 = [s for s in pool if s.change_rate >= 2.0]
+          print(f"\n+2% 이상 종목: {len(up2)}개")
+          selected = prov.fetch()
+          print(f"최종 유니버스 선정: {len(selected)}개 → {selected}")
+          if not selected:
+              print("→ 유니버스 0 = 봇이 '쉬는' 이유. 상승 종목(+2%)이 없음 = 약세/횡보장.")
+          PYEOF
