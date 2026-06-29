@@ -42,6 +42,7 @@ def make_strategy(ticker: str) -> Strategy:
     return GoldenCrossStrategy(
         ticker, short_window=3, long_window=10, bar_type="minute",
         band_pct=settings.cross_band_pct,
+        state_entry=True,   # 공격적: 이미 정배열(상승추세)인 종목도 즉시 진입
     )
 
 

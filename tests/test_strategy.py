@@ -11,6 +11,12 @@ def _action(closes: list[float], band_pct: float) -> Action:
     return strat.generate_signals(df)["A"].action
 
 
+def _action_state(closes: list[float], band_pct: float = 0.0) -> Action:
+    strat = GoldenCrossStrategy("A", short_window=2, long_window=3, band_pct=band_pct, state_entry=True)
+    df = pd.DataFrame({"close": closes})
+    return strat.generate_signals(df)["A"].action
+
+
 # ------------------------------------------------------------------
 # band=0 — 기존 단순 크로스 동작 보존
 # ------------------------------------------------------------------
@@ -39,6 +45,21 @@ def test_small_cross_suppressed_by_band():
 def test_decisive_cross_passes_band():
     assert _action([100, 100, 100, 100, 100, 110], 0.01) == Action.BUY
     assert _action([100, 100, 100, 100, 100, 90], 0.01) == Action.SELL
+
+
+# ------------------------------------------------------------------
+# 상태 기반 진입(state_entry) — 이미 추세인 종목도 잡는다 (공격적)
+# ------------------------------------------------------------------
+
+def test_state_entry_buys_existing_uptrend():
+    # 이미 정배열(상승추세). 크로스 '순간'은 지났음.
+    closes = [100, 101, 102, 103, 104]
+    assert _action(closes, 0.0) == Action.HOLD        # 크로스 기반: 이미 위 → 신호 없음
+    assert _action_state(closes) == Action.BUY        # 상태 기반: 정배열 → 즉시 BUY
+
+def test_state_entry_sells_existing_downtrend():
+    closes = [104, 103, 102, 101, 100]
+    assert _action_state(closes) == Action.SELL       # 역배열 → SELL
 
 
 # ------------------------------------------------------------------

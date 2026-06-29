@@ -216,6 +216,12 @@ class PaperTrader:
                 logger.info("[KR][{}] 재진입 쿨다운 — BUY 스킵", ticker)
                 continue
 
+            # 1종목 1포지션 — 이미 보유 시 추가매수(피라미딩) 차단.
+            # 상태진입(정배열이면 매수)이 한 종목에 자본을 몰빵하는 것 방지, 유니버스 분산.
+            if signal.action == Action.BUY and position_qtys.get(ticker, 0) > 0:
+                logger.debug("[KR][{}] 이미 보유 — 추가매수 스킵", ticker)
+                continue
+
             if signal.action == Action.SELL and position_values.get(ticker, 0.0) <= 0:
                 logger.debug("[KR][{}] 보유 없음 — SELL 스킵", ticker)
                 continue
