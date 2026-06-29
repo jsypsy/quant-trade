@@ -17,6 +17,7 @@ from loguru import logger
 
 from config.settings import settings
 from src.portfolio.account import Balance
+from src.utils.names import name_of, register as _register_names
 
 _API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -30,6 +31,7 @@ _KR_NAMES: dict[str, str] = {
     "055550": "신한지주",
     "105560": "KB금융",
 }
+_register_names(_KR_NAMES)   # 기본 사전을 레지스트리에 시드 (유니버스가 나머지를 채움)
 
 
 def _send(text: str) -> None:
@@ -61,7 +63,7 @@ def notify_order(
     price_str = f"{int(price):,}원"
     side_kr = "매수" if side == "BUY" else "매도"
     emoji = "🟢" if side == "BUY" else "🔴"
-    name = _KR_NAMES.get(ticker, ticker)
+    name = name_of(ticker)
     _send(
         f"{tag}\n"
         f"{emoji} <b>{side_kr}</b> {name}({ticker}) {qty}주 @ {price_str}\n"
@@ -76,7 +78,7 @@ def notify_portfolio(balance: Balance, *, filled: set[str] | None = None) -> Non
     """
     lines = ["📊 <b>포트폴리오 현황</b>"]
     if filled:
-        names = ", ".join(_KR_NAMES.get(t, t) for t in sorted(filled))
+        names = ", ".join(name_of(t) for t in sorted(filled))
         lines.append(f"✅ 체결: {names}")
     if balance.positions:
         for p in balance.positions:

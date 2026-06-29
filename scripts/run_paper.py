@@ -33,14 +33,14 @@ from src.utils.logging import setup_logging
 DRY_RUN              = settings.dry_run
 INTERVAL             = int(os.getenv("INTERVAL_SEC", "30"))        # 사이클 주기(초)
 RUN_MINUTES          = int(os.getenv("RUN_MINUTES", "0"))          # 0 = 무제한
-UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "5"))       # 동적 유니버스 종목 수 (호출량/레이트리밋 ↓; 자본상 2~3종목만 담김)
+UNIVERSE_TOP_N       = int(os.getenv("UNIVERSE_TOP_N", "10"))      # 동적 유니버스 종목 수 (공격적: 후보 확대)
 UNIVERSE_REFRESH_SEC = int(os.getenv("UNIVERSE_REFRESH_SEC", "300"))  # 5분마다 종목 재선정
 
 
 def make_strategy(ticker: str) -> Strategy:
     """동적 유니버스 종목에 적용할 전략 (분봉 골든크로스)."""
     return GoldenCrossStrategy(
-        ticker, short_window=3, long_window=10, bar_type="minute",
+        ticker, short_window=2, long_window=5, bar_type="minute",   # 공격적: MA 단축(빠른 진입·잦은 매매)
         band_pct=settings.cross_band_pct,
         state_entry=True,   # 공격적: 이미 정배열(상승추세)인 종목도 즉시 진입
     )

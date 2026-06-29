@@ -15,7 +15,7 @@ from src.data.market import MarketData
 from src.data.universe import UniverseProvider
 from src.execution.order import OrderType
 from src.execution.order_manager import OrderManager
-from src.notify.telegram import notify_error, notify_portfolio
+from src.notify.telegram import notify_error
 from src.utils.trade_log import log_trade
 from src.portfolio.account import AccountQuery, Balance
 from src.risk.guard import RiskContext, RiskGuard
@@ -271,12 +271,7 @@ class PaperTrader:
                 results[ticker] = result
 
         # 실제 체결이 확인된 종목이 있을 때만, 최신 잔고를 다시 조회해 현황 전송.
-        filled = self._manager.sync_fills()
-        if filled:
-            try:
-                fresh = self._account.get_balance()
-                notify_portfolio(fresh, filled=filled)
-            except Exception as exc:
-                logger.warning("체결 후 잔고 조회 실패 — 포트폴리오 알림 스킵: {}", exc)
+        # 체결 동기화 (포트폴리오 현황 알림은 실시간 반영 이슈로 잠시 비활성화 — 추후 타이밍 재검토)
+        self._manager.sync_fills()
         logger.info("━━ [KR] 사이클 #{} 완료 (주문={}건) ━━", self._cycle_no, len(results))
         return results

@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from loguru import logger
 
 from src.kis.client import KISClient
+from src.utils.names import register as _register_names
 
 _VOLUME_RANK_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _VOLUME_RANK_TR_ID = "FHPST01710000"
@@ -86,6 +87,7 @@ class UniverseProvider:
     def fetch(self) -> list[str]:
         """선정 프로세스를 거친 유니버스 종목코드 리스트(상위 top_n)를 반환한다."""
         pool = self._fetch_pool()
+        _register_names({s.ticker: s.name for s in pool})   # 알림용 종목명 등록
         selected = self._select(pool)
         logger.info(
             "[유니버스] 거래대금 풀 {}건 → 필터·상승률순 상위 {} 선정: {}",
