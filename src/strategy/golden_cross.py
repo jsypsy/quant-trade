@@ -26,6 +26,7 @@ class GoldenCrossStrategy(Strategy):
         bar_type: str = "daily",    # "daily" | "minute"
         band_pct: float = 0.0,      # 최소 격차 (0 = 단순 비교)
         state_entry: bool = False,  # True: 정배열/역배열 '상태'로 진입 (크로스 순간 불필요, 공격적)
+        exit_on_reversal: bool = True,  # False: 역배열에도 매도 안 함(churn 제거 — 청산은 손절/익절에 위임)
     ) -> None:
         if short_window >= long_window:
             raise ValueError(f"short_window({short_window}) must be < long_window({long_window})")
@@ -36,6 +37,7 @@ class GoldenCrossStrategy(Strategy):
         self.bar_type = bar_type
         self.band_pct = band_pct
         self.state_entry = state_entry
+        self.exit_on_reversal = exit_on_reversal
 
     def generate_signals(self, ohlcv: pd.DataFrame) -> dict[str, Signal]:
         if len(ohlcv) < self.long_window + 1:
@@ -63,11 +65,12 @@ class GoldenCrossStrategy(Strategy):
             if curr_s > curr_upper:
                 action = Action.BUY
                 reason = f"정배열 MA{self.short_window}({curr_s:.0f}) > MA{self.long_window}({curr_l:.0f})"
-            elif curr_s < curr_lower:
+            elif curr_s < curr_lower and self.exit_on_reversal:
                 action = Action.SELL
                 reason = f"역배열 MA{self.short_window}({curr_s:.0f}) < MA{self.long_window}({curr_l:.0f})"
             else:
-                reason = f"HOLD — 밴드 내 MA{self.short_window}({curr_s:.0f})≈MA{self.long_window}({curr_l:.0f})"
+                # 역배열이어도 exit_on_reversal=False 면 보유 유지(청산은 손절/익절이 담당)
+                reason = f"HOLD — MA{self.short_window}({curr_s:.0f}) / MA{self.long_window}({curr_l:.0f}) (보유유지)"
                 action = Action.HOLD
         elif prev_s <= prev_upper and curr_s > curr_upper:
             action = Action.BUY

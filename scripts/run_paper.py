@@ -24,6 +24,7 @@ from src.kis.auth import KISAuth
 from src.kis.client import KISClient
 from src.portfolio.account import AccountQuery
 from src.risk.guard import RiskGuard
+from src.risk.position_monitor import PositionMonitor
 from src.scheduler.runner import PaperTrader
 from src.signal.engine import SignalEngine
 from src.strategy.base import Strategy
@@ -40,9 +41,10 @@ UNIVERSE_REFRESH_SEC = int(os.getenv("UNIVERSE_REFRESH_SEC", "300"))  # 5분마�
 def make_strategy(ticker: str) -> Strategy:
     """동적 유니버스 종목에 적용할 전략 (분봉 골든크로스)."""
     return GoldenCrossStrategy(
-        ticker, short_window=3, long_window=10, bar_type="minute",  # 휘소 억제: MA 되돌림
+        ticker, short_window=3, long_window=10, bar_type="minute",
         band_pct=settings.cross_band_pct,
-        state_entry=True,   # 공격적: 이미 정배열(상승추세)인 종목도 즉시 진입
+        state_entry=True,        # 공격적: 정배열(상승추세) 종목 즉시 진입
+        exit_on_reversal=False,  # 역배열 churn 매도 안 함 — 청산은 손절/익절에 위임(수수료 ↓)
     )
 
 
@@ -65,6 +67,8 @@ def main() -> None:
     account = AccountQuery(client)
 
     guard    = RiskGuard()
+    # 스윙형: 장마감 강제청산 OFF → 손절/익절 미도달 종목은 오버나이트 보유
+    monitor  = PositionMonitor(eod_liquidate=False)
     executor = OrderExecutor(client, dry_run=DRY_RUN)
     manager  = OrderManager(executor)
     engine   = SignalEngine(make_strategy, market)
@@ -81,6 +85,7 @@ def main() -> None:
         order_manager=manager,
         account=account,
         universe=universe,
+        position_monitor=monitor,
         interval=INTERVAL,
         universe_refresh_sec=UNIVERSE_REFRESH_SEC,
         reentry_cooldown_sec=settings.reentry_cooldown_sec,

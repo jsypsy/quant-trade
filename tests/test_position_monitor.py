@@ -79,3 +79,17 @@ def test_uses_orderable_qty():
 
 def test_zero_orderable_skipped():
     assert MONITOR.check([make_position(-5.0, orderable_qty=0)], now=MIDDAY) == []
+
+
+# ------------------------------------------------------------------
+# 장마감 강제청산 OFF (오버나이트 보유 — 스윙)
+# ------------------------------------------------------------------
+
+def test_eod_disabled_holds_overnight():
+    m = PositionMonitor(stop_loss_pct=2.0, take_profit_pct=4.0, eod_liquidate=False)
+    assert m.eod_active(now=AFTER_EOD) is False
+    # 장마감 시간이어도 밴드 내(손절/익절 미도달) 종목은 청산 안 함
+    assert m.check([make_position(0.5)], now=AFTER_EOD) == []
+    # 단, 손절은 장마감이든 아니든 작동
+    exits = m.check([make_position(-3.0)], now=AFTER_EOD)
+    assert len(exits) == 1 and "손절" in exits[0].reason

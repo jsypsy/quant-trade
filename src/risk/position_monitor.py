@@ -41,6 +41,7 @@ class PositionMonitor:
         stop_loss_pct: float | None = None,
         take_profit_pct: float | None = None,
         eod_exit: dtime | None = None,
+        eod_liquidate: bool = True,   # False: 장마감 강제청산 안 함(오버나이트 보유 허용 — 스윙)
     ) -> None:
         self.stop_loss_pct = (
             stop_loss_pct if stop_loss_pct is not None else _global_settings.stop_loss_pct
@@ -49,9 +50,15 @@ class PositionMonitor:
             take_profit_pct if take_profit_pct is not None else _global_settings.take_profit_pct
         )
         self.eod_exit = eod_exit if eod_exit is not None else _default_eod_exit()
+        self.eod_liquidate = eod_liquidate
 
     def eod_active(self, now: datetime | None = None) -> bool:
-        """장 마감 청산 구간 여부. 이 구간에는 신규 매수도 차단해야 한다."""
+        """장 마감 청산 구간 여부. 이 구간에는 신규 매수도 차단해야 한다.
+
+        eod_liquidate=False 면 항상 False (오버나이트 보유 허용).
+        """
+        if not self.eod_liquidate:
+            return False
         return (now or now_kst()).time() >= self.eod_exit
 
     def check(self, positions: list[Position], now: datetime | None = None) -> list[ExitOrder]:

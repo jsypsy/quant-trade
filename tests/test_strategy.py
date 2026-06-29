@@ -62,6 +62,15 @@ def test_state_entry_sells_existing_downtrend():
     assert _action_state(closes) == Action.SELL       # 역배열 → SELL
 
 
+def test_state_entry_no_exit_on_reversal_holds():
+    """exit_on_reversal=False: 역배열에도 매도 안 함(보유유지), 정배열엔 여전히 매수."""
+    strat = GoldenCrossStrategy("A", short_window=2, long_window=3, state_entry=True, exit_on_reversal=False)
+    down = strat.generate_signals(pd.DataFrame({"close": [104, 103, 102, 101, 100]}))["A"]
+    up = strat.generate_signals(pd.DataFrame({"close": [100, 101, 102, 103, 104]}))["A"]
+    assert down.action == Action.HOLD   # 역배열인데 매도 안 함
+    assert up.action == Action.BUY      # 정배열은 매수
+
+
 # ------------------------------------------------------------------
 # 데이터 부족 → HOLD
 # ------------------------------------------------------------------
