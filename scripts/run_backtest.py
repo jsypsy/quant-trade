@@ -10,10 +10,12 @@
 OOS 권장: 결과를 과신하지 말 것 — 과적합·일봉↔분봉 괴리 존재.
 """
 import argparse
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from loguru import logger
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 _KST = ZoneInfo("Asia/Seoul")
 
