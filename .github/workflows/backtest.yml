@@ -1,0 +1,47 @@
+name: 백테스트
+
+on:
+  workflow_dispatch:
+    inputs:
+      tp:
+        description: '익절 (예: 0.04 = +4%)'
+        default: '0.04'
+        required: false
+      sl:
+        description: '손절 (예: 0.02 = -2%)'
+        default: '0.02'
+        required: false
+      band:
+        description: '밴드 (예: 0.001 = 0.1%)'
+        default: '0.001'
+        required: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create .env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: printf '%s\n' "$DOT_ENV" > .env
+
+      - name: Create KIS config
+        env:
+          KIS_CONFIG: ${{ secrets.KIS_CONFIG_YAML }}
+        run: |
+          mkdir -p ~/KIS/config
+          printf '%s' "$KIS_CONFIG" > ~/KIS/config/kis_devlp.yaml
+
+      - name: 백테스트 실행 (KIS 일봉, 주문 없음)
+        run: |
+          uv run python scripts/run_backtest.py \
+            --tp "${{ inputs.tp || '0.04' }}" \
+            --sl "${{ inputs.sl || '0.02' }}" \
+            --band "${{ inputs.band || '0.001' }}"
