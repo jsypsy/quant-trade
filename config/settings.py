@@ -31,7 +31,7 @@ class KISSettings(BaseSettings):
     max_order_amount: int = Field(default=10_000_000) # 1회 주문 한도 = 운용자본
     max_position_pct: float = Field(default=1.0)       # 단일 종목 100% 허용 (집중)
     stop_loss_pct: float = Field(default=2.0)    # 종목별 손절 한도 (%)
-    take_profit_pct: float = Field(default=4.0)  # 종목별 익절 기준 (%)
+    take_profit_pct: float = Field(default=2.5)  # 종목별 익절 기준 (%) — 이익 실현(토해냄 방지)
     cross_band_pct: float = Field(default=0.001)    # 크로스 최소 격차 (0.1%, 중간 — 노이즈 억제+거래 유지)
     reentry_cooldown_sec: int = Field(default=120)  # 매도 후 재진입 금지 (초)
 

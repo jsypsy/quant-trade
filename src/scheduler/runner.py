@@ -43,6 +43,13 @@ def _affordable_qty(capital: float, deployed: float, price: float) -> int:
     return max(0, int(room / price))
 
 
+def _slot_qty(capital: float, slot_count: int, price: float) -> int:
+    """균등배분 — 종목당 자본(capital/slot_count)으로 살 수 있는 수량."""
+    if price <= 0 or slot_count <= 0:
+        return 0
+    return max(0, int((capital / slot_count) / price))
+
+
 class PaperTrader:
     def __init__(
         self,
@@ -57,6 +64,7 @@ class PaperTrader:
         universe_refresh_sec: int = 300,
         reentry_cooldown_sec: int = 300,
         trading_capital: int = 10_000_000,
+        slot_count: int = 1,   # 균등배분 슬롯 수(종목당 자본 = trading_capital/slot_count). 1=비활성
     ) -> None:
         self._engine    = signal_engine
         self._market    = market
@@ -69,6 +77,7 @@ class PaperTrader:
         self._universe_refresh_sec = universe_refresh_sec
         self._reentry_cooldown_sec = reentry_cooldown_sec
         self._trading_capital = trading_capital
+        self._slot_count = max(1, slot_count)
         self._daily_pnl: float = 0.0
         self._pnl_date = None                 # 일일 손익 기준일 (KST)
         self._day_start_value: int = 0        # 장 시작 시점 총 평가금액 스냅샷
@@ -253,10 +262,11 @@ class PaperTrader:
             )
             decision = self._guard.check(ticker, signal, ctx)
 
-            # 운용 자본 한도 — 총 투입액이 trading_capital 을 넘지 않도록 BUY 수량 제한
+            # 운용 자본 한도 + 균등배분 — 총 투입은 trading_capital 이내, 1종목은 슬롯(자본/slot_count) 이내
             if decision.approved and decision.action == Action.BUY:
                 room_qty = _affordable_qty(self._trading_capital, deployed, current_price)
-                decision.qty = min(decision.qty, room_qty)
+                slot_qty = _slot_qty(self._trading_capital, self._slot_count, current_price)
+                decision.qty = min(decision.qty, room_qty, slot_qty)
                 if decision.qty <= 0:
                     logger.info("[KR][{}] 운용자본 한도 소진 — BUY 스킵", ticker)
                     continue

@@ -90,6 +90,7 @@ def main() -> None:
         universe_refresh_sec=UNIVERSE_REFRESH_SEC,
         reentry_cooldown_sec=settings.reentry_cooldown_sec,
         trading_capital=settings.trading_capital,
+        slot_count=UNIVERSE_TOP_N,   # 균등배분 — 종목당 자본 = 운용자본/유니버스수
     )
     trader.run(max_seconds=RUN_MINUTES * 60 if RUN_MINUTES else None)
 
