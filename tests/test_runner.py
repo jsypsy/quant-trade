@@ -1,5 +1,5 @@
 """PaperTrader 운용 자본 한도 헬퍼 테스트."""
-from src.scheduler.runner import _affordable_qty, _slot_qty
+from src.scheduler.runner import _affordable_qty, _cash_qty, _slot_qty
 
 
 def test_room_within_capital():
@@ -38,3 +38,22 @@ def test_slot_qty_caps_big_position():
 def test_slot_qty_edge():
     assert _slot_qty(10_000_000, 0, 1_000) == 0
     assert _slot_qty(10_000_000, 10, 0) == 0
+
+
+# ------------------------------------------------------------------
+# 미수 방지 — 예수금 상한
+# ------------------------------------------------------------------
+
+def test_cash_qty_within_deposit():
+    # 예수금 100만, 가격 1000 → 1000주
+    assert _cash_qty(1_000_000, 1_000) == 1_000
+
+
+def test_cash_qty_negative_deposit_blocks_buy():
+    # 이미 미수(예수금 마이너스) → 신규 매수 0
+    assert _cash_qty(-784_008, 1_000) == 0
+    assert _cash_qty(0, 1_000) == 0
+
+
+def test_cash_qty_zero_price():
+    assert _cash_qty(1_000_000, 0) == 0

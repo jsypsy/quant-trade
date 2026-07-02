@@ -50,6 +50,17 @@ def _slot_qty(capital: float, slot_count: int, price: float) -> int:
     return max(0, int((capital / slot_count) / price))
 
 
+def _cash_qty(cash: float, price: float) -> int:
+    """미수 방지 — 예수금(현금) 이내에서 살 수 있는 수량. 예수금 ≤ 0 이면 0.
+
+    trading_capital 한도만으론 매도 후 미정산금(T+2)으로 재매수해 미수가 쌓임.
+    실제 예수금을 상한으로 두면 판 돈 재사용은 허용하되 예수금 초과 매수(=미수)만 차단.
+    """
+    if price <= 0 or cash <= 0:
+        return 0
+    return max(0, int(cash / price))
+
+
 class PaperTrader:
     def __init__(
         self,
@@ -174,6 +185,8 @@ class PaperTrader:
         position_qtys = {p.ticker: p.qty for p in balance.positions}
         # 투입 원금(매입금액) 합 — 시드 한도 추적 (평가액 아님: 손실 종목 물타기 방지)
         deployed = float(sum(p.purchase_amount for p in balance.positions))
+        # 예수금 — 미수 방지 상한 (사이클 내 매수마다 차감)
+        cash_room = float(balance.cash)
 
         now = time.monotonic()
 
@@ -266,11 +279,13 @@ class PaperTrader:
             if decision.approved and decision.action == Action.BUY:
                 room_qty = _affordable_qty(self._trading_capital, deployed, current_price)
                 slot_qty = _slot_qty(self._trading_capital, self._slot_count, current_price)
-                decision.qty = min(decision.qty, room_qty, slot_qty)
+                cash_qty = _cash_qty(cash_room, current_price)   # 미수 방지: 예수금 이내
+                decision.qty = min(decision.qty, room_qty, slot_qty, cash_qty)
                 if decision.qty <= 0:
-                    logger.info("[KR][{}] 운용자본 한도 소진 — BUY 스킵", ticker)
+                    logger.info("[KR][{}] 한도 소진(자본/슬롯/예수금) — BUY 스킵", ticker)
                     continue
                 deployed += decision.qty * current_price
+                cash_room -= decision.qty * current_price
 
             # 매도 승인 시 재진입 쿨다운 설정
             if decision.approved and decision.action == Action.SELL:
