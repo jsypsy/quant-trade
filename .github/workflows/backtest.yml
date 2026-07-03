@@ -23,6 +23,10 @@ on:
         description: '종료일 YYYYMMDD (비우면 오늘)'
         default: ''
         required: false
+      tickers:
+        description: '종목코드 쉼표구분 (비우면 기본 바스켓)'
+        default: ''
+        required: false
 
 jobs:
   backtest:
@@ -52,5 +56,6 @@ jobs:
           ARGS="--tp ${{ inputs.tp || '0.04' }} --sl ${{ inputs.sl || '0.02' }} --band ${{ inputs.band || '0.001' }}"
           if [ -n "${{ inputs.start }}" ]; then ARGS="$ARGS --start ${{ inputs.start }}"; fi
           if [ -n "${{ inputs.end }}" ]; then ARGS="$ARGS --end ${{ inputs.end }}"; fi
+          if [ -n "${{ inputs.tickers }}" ]; then ARGS="$ARGS --tickers ${{ inputs.tickers }}"; fi
           echo "실행: run_backtest.py $ARGS"
           uv run python scripts/run_backtest.py $ARGS
