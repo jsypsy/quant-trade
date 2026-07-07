@@ -10,7 +10,9 @@ KIS 거래량순위 API:
   2. 가격 필터        — min_price ≤ 현재가 ≤ max_price. 동전주·초고가 제외.
   3. 모멘텀 필터      — 등락률 ≥ min_change_rate. 상승 종목만 (역배열/하락주 배제 근사).
   4. RVOL 필터        — 거래증가율 ≥ min_rvol. 평소 대비 자금 유입('stock in play').
-  5. 랭킹             — 등락률(상승률) 내림차순 → 상위 top_n ('1등 대장주' 휴리스틱).
+  5. 랭킹             — 거래대금(유동성·대형주) 내림차순 → 상위 top_n.
+                        급등주(등락률 1등)를 좇지 않고 대형 안정주 우선
+                        (백테스트: 대형주 +13%, 급등주 -8%. max_change_rate로 폭등주 제외).
 
 자동화 못 하는 단계(한계, 별도 데이터/계층 필요):
   · 주도 테마·뉴스/공시 연계 '1등주'  → 뉴스·테마 피드 없음. 상승률 1등으로 근사만 함.
@@ -71,6 +73,7 @@ class UniverseProvider:
         min_price: int = 1000,
         max_price: int = 0,            # 0 = 상한 없음
         min_change_rate: float = 0.0,  # 등락률 % 하한 (상승 종목 위주)
+        max_change_rate: float = 0.0,  # 등락률 % 상한 (0=없음). 급등주(폭등 테마주) 제외
         min_rvol: float = 0.0,         # 거래증가율 하한 (단위 확인 후 보정)
         min_trade_value: int = 0,      # 거래대금 하한 원 (단위 확인 후 보정, 예: TRADE_VALUE_50B)
     ) -> None:
@@ -81,6 +84,7 @@ class UniverseProvider:
         self._min_price = min_price
         self._max_price = max_price
         self._min_change_rate = min_change_rate
+        self._max_change_rate = max_change_rate
         self._min_rvol = min_rvol
         self._min_trade_value = min_trade_value
 
@@ -90,7 +94,7 @@ class UniverseProvider:
         _register_names({s.ticker: s.name for s in pool})   # 알림용 종목명 등록
         selected = self._select(pool)
         logger.info(
-            "[유니버스] 거래대금 풀 {}건 → 필터·상승률순 상위 {} 선정: {}",
+            "[유니버스] 거래대금 풀 {}건 → 필터·거래대금순 상위 {} 선정: {}",
             len(pool), len(selected),
             ", ".join(f"{s.name}({s.ticker}) {s.change_rate:+.1f}%" for s in selected),
         )
@@ -106,10 +110,13 @@ class UniverseProvider:
             if s.price >= self._min_price
             and (self._max_price == 0 or s.price <= self._max_price)
             and s.change_rate >= self._min_change_rate
+            and (self._max_change_rate == 0 or s.change_rate <= self._max_change_rate)
             and s.vol_increase >= self._min_rvol
             and s.trade_value >= self._min_trade_value
         ]
-        filtered.sort(key=lambda s: s.change_rate, reverse=True)
+        # 랭킹: 거래대금(유동성·대형주) 내림차순 → 상위 top_n.
+        # 급등주(등락률 1등)를 좇지 않고 대형 안정주를 고른다 (백테스트: 대형주 +, 급등주 -).
+        filtered.sort(key=lambda s: s.trade_value, reverse=True)
         return filtered[: self._top_n]
 
     def _fetch_pool(self) -> list[RankedStock]:

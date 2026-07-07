@@ -75,7 +75,8 @@ def main() -> None:
     universe = UniverseProvider(
         client, market=MARKET_KOSPI, top_n=UNIVERSE_TOP_N,
         pool_size=30,             # 거래대금 풀 확대(필터 후 후보 확보)
-        min_change_rate=2.0,      # 모멘텀 필터 ON — 등락률 +2% 이상(실제 오르는 종목만)
+        min_change_rate=1.0,      # 완만한 상승만 요구 (하락주 배제)
+        max_change_rate=8.0,      # 급등주(폭등 테마주) 제외 — 랭킹은 거래대금순(대형 안정주 우선)
     )
 
     trader = PaperTrader(

@@ -17,33 +17,51 @@ def _row(ticker, name, price, change, vol_inrt, trade_value=10_000_000_000):
     }
 
 
-def test_fetch_filters_and_ranks_by_change_rate():
+def test_fetch_filters_and_ranks_by_trade_value():
     client = MagicMock()
     client.get.return_value = {
         "output": [
-            _row("000001", "상승중간", 5000, 3.0, 100),
-            _row("000002", "동전주",   500,  9.0, 300),   # 가격 < min_price 제외
-            _row("000003", "상승1등",  8000, 7.5, 50),    # 상승률 최상위
-            _row("000004", "하락주",   3000, -2.0, 400),  # 등락률 < 0 제외
+            _row("000001", "중간거래대금", 5000, 3.0, 100, trade_value=20_000_000_000),
+            _row("000002", "동전주",       500,  9.0, 300, trade_value=99_000_000_000),  # 가격<min 제외
+            _row("000003", "최대거래대금", 8000, 7.5, 50,  trade_value=50_000_000_000),
+            _row("000004", "하락주",       3000, -2.0, 400, trade_value=80_000_000_000), # 등락<0 제외
         ]
     }
     provider = UniverseProvider(client, top_n=10, min_price=1000, min_change_rate=0.0)
     result = provider.fetch()
 
-    # 동전주(가격)·하락주(등락률) 제외, 상승률 내림차순
+    # 동전주(가격)·하락주(등락률) 제외 후 거래대금 내림차순: 000003(50B) > 000001(20B)
     assert result == ["000003", "000001"]
+
+
+def test_max_change_rate_excludes_rockets():
+    client = MagicMock()
+    client.get.return_value = {
+        "output": [
+            _row("000001", "대형안정", 5000, 3.0,  100, trade_value=50_000_000_000),
+            _row("000002", "급등주",   5000, 15.0, 100, trade_value=90_000_000_000),  # +15% > 상한
+        ]
+    }
+    provider = UniverseProvider(client, top_n=10, min_price=1000, max_change_rate=8.0)
+    result = provider.fetch()
+
+    # 급등주(+15%)는 거래대금 1등이어도 상한 초과로 제외
+    assert result == ["000001"]
 
 
 def test_fetch_respects_top_n():
     client = MagicMock()
     client.get.return_value = {
-        "output": [_row(f"00000{i}", f"종목{i}", 5000, float(i), 100) for i in range(1, 6)]
+        "output": [
+            _row(f"00000{i}", f"종목{i}", 5000, 3.0, 100, trade_value=i * 1_000_000_000)
+            for i in range(1, 6)
+        ]
     }
     provider = UniverseProvider(client, top_n=2, min_price=1000)
     result = provider.fetch()
 
     assert len(result) == 2
-    # 등락률 5.0, 4.0 인 종목이 상위
+    # 거래대금 5B, 4B 인 종목이 상위
     assert result == ["000005", "000004"]
 
 
