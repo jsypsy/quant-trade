@@ -1,5 +1,10 @@
 """PaperTrader 운용 자본 한도 헬퍼 테스트."""
-from src.scheduler.runner import _affordable_qty, _cash_qty, _slot_qty
+from src.scheduler.runner import (
+    _affordable_qty,
+    _already_committed,
+    _cash_qty,
+    _slot_qty,
+)
 
 
 def test_room_within_capital():
@@ -57,3 +62,25 @@ def test_cash_qty_negative_deposit_blocks_buy():
 
 def test_cash_qty_zero_price():
     assert _cash_qty(1_000_000, 0) == 0
+
+
+# ------------------------------------------------------------------
+# 1종목 1포지션 — 잔고 지연에도 몰빵(피라미딩) 차단
+# ------------------------------------------------------------------
+
+def test_committed_when_held_in_balance():
+    assert _already_committed("002990", {"002990": 71}, set()) is True
+
+
+def test_committed_when_bought_but_balance_lags():
+    # 잔고엔 아직 미반영(빈 dict)이지만 이미 매수함 → 차단 (금호건설 284주 버그 재현 방지)
+    assert _already_committed("002990", {}, {"002990"}) is True
+
+
+def test_not_committed_for_new_ticker():
+    # 다른 종목은 매수 허용
+    assert _already_committed("005930", {"002990": 71}, {"002990"}) is False
+
+
+def test_not_committed_when_flat():
+    assert _already_committed("002990", {}, set()) is False

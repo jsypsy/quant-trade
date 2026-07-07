@@ -61,6 +61,18 @@ def _cash_qty(cash: float, price: float) -> int:
     return max(0, int(cash / price))
 
 
+def _already_committed(
+    ticker: str, position_qtys: dict[str, int], open_buys: set[str]
+) -> bool:
+    """이미 보유(잔고) 또는 매수 진행 중(잔고 미반영)이면 True → 추가매수 차단.
+
+    KIS 모의 잔고조회가 체결을 수 분씩 늦게 반영해, 잔고만 보면 방금 산 종목을
+    "미보유"로 오인해 같은 종목을 매 사이클 반복 매수(피라미딩)한다.
+    봇이 매수한 종목을 로컬(open_buys)로 기억해 잔고 지연과 무관하게 1종목 1포지션을 지킨다.
+    """
+    return position_qtys.get(ticker, 0) > 0 or ticker in open_buys
+
+
 class PaperTrader:
     def __init__(
         self,
@@ -96,6 +108,7 @@ class PaperTrader:
         self._universe_tickers: list[str] = []
         self._universe_ts: float = 0.0
         self._cooldown_until: dict[str, float] = {}   # ticker → 재진입 가능 시각(monotonic)
+        self._open_buys: set[str] = set()             # 봇이 매수·보유중인 종목 (잔고 지연 무관 피라미딩 차단)
 
     # ------------------------------------------------------------------
     # Public
@@ -212,6 +225,7 @@ class PaperTrader:
             )
             if result and result.success:
                 exit_results[exit_order.ticker] = result
+                self._open_buys.discard(exit_order.ticker)   # 청산됨 → 재매수 허용(쿨다운 후)
 
         # 유니버스 갱신 (보유 종목은 매도 관리 위해 항상 포함)
         self._refresh_universe(list(position_qtys.keys()))
@@ -238,10 +252,12 @@ class PaperTrader:
                 logger.info("[KR][{}] 재진입 쿨다운 — BUY 스킵", ticker)
                 continue
 
-            # 1종목 1포지션 — 이미 보유 시 추가매수(피라미딩) 차단.
-            # 상태진입(정배열이면 매수)이 한 종목에 자본을 몰빵하는 것 방지, 유니버스 분산.
-            if signal.action == Action.BUY and position_qtys.get(ticker, 0) > 0:
-                logger.debug("[KR][{}] 이미 보유 — 추가매수 스킵", ticker)
+            # 1종목 1포지션 — 이미 보유(잔고) 또는 매수 진행중(잔고 미반영) 시 추가매수 차단.
+            # 잔고조회가 체결을 늦게 반영해도 로컬 기억(_open_buys)으로 몰빵(피라미딩) 방지.
+            if signal.action == Action.BUY and _already_committed(
+                ticker, position_qtys, self._open_buys
+            ):
+                logger.debug("[KR][{}] 이미 보유/매수중 — 추가매수 스킵", ticker)
                 continue
 
             if signal.action == Action.SELL and position_values.get(ticker, 0.0) <= 0:
@@ -294,6 +310,11 @@ class PaperTrader:
             result = self._manager.submit(decision, current_price)
             if result and result.success:
                 results[ticker] = result
+                # 로컬 포지션 기억 갱신 — 잔고 반영 지연과 무관하게 1종목 1포지션 유지
+                if decision.action == Action.BUY:
+                    self._open_buys.add(ticker)
+                elif decision.action == Action.SELL:
+                    self._open_buys.discard(ticker)
 
         # 실제 체결이 확인된 종목이 있을 때만, 최신 잔고를 다시 조회해 현황 전송.
         # 체결 동기화 (포트폴리오 현황 알림은 실시간 반영 이슈로 잠시 비활성화 — 추후 타이밍 재검토)
