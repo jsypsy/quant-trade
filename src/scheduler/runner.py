@@ -208,8 +208,9 @@ class PaperTrader:
         position_qtys = {p.ticker: p.qty for p in balance.positions}
         # 투입 원금(매입금액) 합 — 시드 한도 추적 (평가액 아님: 손실 종목 물타기 방지)
         deployed = float(sum(p.purchase_amount for p in balance.positions))
-        # 예수금 — 미수 방지 상한 (사이클 내 매수마다 차감)
-        cash_room = float(balance.cash)
+        # 미수 방지 상한 — D+0·D+2 예수금 중 보수적(작은) 값 = 진짜 현금 전용.
+        # D+2(가수도정산)를 쓰면 미정산 매도대금 재사용조차 막아 미수가 영구 0. (사이클 내 매수마다 차감)
+        cash_room = float(min(balance.cash, balance.settle_cash))
 
         now = time.monotonic()
 

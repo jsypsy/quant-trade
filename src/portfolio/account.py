@@ -44,12 +44,19 @@ class Position:
 
 @dataclass
 class Balance:
-    cash: int             # 예수금
+    cash: int             # 예수금 (D+0)
+    settle_cash: int      # 가수도정산 예수금 (D+2) — 미정산 매도대금 제외한 실제 현금
     portfolio_value: int  # 총 평가금액
     purchase_amount: int  # 총 매입금액
     pnl: int              # 총 평가손익
     pnl_rate: float       # 총 수익률 (%)
     positions: list[Position]
+
+
+def _settle_cash(summary: dict, fallback_cash: int) -> int:
+    """D+2 정산 예수금(가수도정산금액). 미제공/공란이면 D+0 예수금으로 폴백(거래 중단 방지)."""
+    raw = str(summary.get("prvs_rcdl_excc_amt", "")).strip()
+    return int(float(raw)) if raw else fallback_cash
 
 
 class AccountQuery:
@@ -85,14 +92,18 @@ class AccountQuery:
         summary = data.get("output2", [{}])
         summary = summary[0] if isinstance(summary, list) else summary
         cash = int(summary.get("dnca_tot_amt", 0) or 0)
+        settle_cash = _settle_cash(summary, cash)
         total = int(summary.get("tot_evlu_amt", 0) or 0)
         purchase = int(summary.get("pchs_amt_smtl_amt", 0) or 0)
         pnl = int(summary.get("evlu_pfls_smtl_amt", 0) or 0)
         pnl_rate = float(summary.get("evlu_erng_rt1", 0) or 0)
 
-        logger.info("잔고 조회: 예수금={:,}원  총평가={:,}원  보유종목={}개", cash, total, len(positions))
+        logger.info(
+            "잔고 조회: 예수금={:,}원 (D+2 {:,}원)  총평가={:,}원  보유종목={}개",
+            cash, settle_cash, total, len(positions),
+        )
         return Balance(
-            cash=cash, portfolio_value=total,
+            cash=cash, settle_cash=settle_cash, portfolio_value=total,
             purchase_amount=purchase, pnl=pnl, pnl_rate=pnl_rate,
             positions=positions,
         )
