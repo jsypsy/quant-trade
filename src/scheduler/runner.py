@@ -30,6 +30,16 @@ from src.utils.time import (
 
 _DEFAULT_INTERVAL   = 300   # 장 중 주기 (초)
 _CLOSED_CHECK       = 60    # 장 외 대기 단위 (초)
+_BEAR_THRESHOLD     = -0.5  # 시장(거래대금 상위) 등락률 중앙값 이 % 미만 → 하락 국면(신규 매수 정지)
+
+
+def _market_bearish(market_change: float | None, threshold: float = _BEAR_THRESHOLD) -> bool:
+    """하락 국면이면 True → 신규 매수 차단(보유는 손절/익절로 관리).
+
+    롱온리 전략은 하락장에서 가짜 반등을 사서 손절 연쇄로 깨진다. 시장이 명확히
+    빠질 때는 아예 안 사고 현금 방어. 데이터 없으면 False(페일세이프: 매수 허용).
+    """
+    return market_change is not None and market_change < threshold
 
 
 def _affordable_qty(capital: float, deployed: float, price: float) -> int:
@@ -241,10 +251,18 @@ class PaperTrader:
         pending = self._manager.get_pending_tickers()
         results = dict(exit_results)
         eod = self._monitor.eod_active()
+        # 신규 매수 전면 차단 조건: 장 마감 청산 구간 or 하락 국면(현금 방어)
+        bearish = _market_bearish(self._universe.market_change)
+        if eod:
+            logger.info("[KR] 장 마감 청산 구간 — 신규 매수 차단")
+        if bearish:
+            logger.info(
+                "[KR] 하락 국면(시장 {:+.2f}%) — 신규 매수 차단",
+                self._universe.market_change,
+            )
 
         for ticker, signal in signals.items():
-            if signal.action == Action.BUY and eod:
-                logger.info("[KR][{}] 장 마감 청산 구간 — 신규 매수 차단", ticker)
+            if signal.action == Action.BUY and (eod or bearish):
                 continue
 
             # 재진입 쿨다운 — 최근 매도 종목의 BUY 차단

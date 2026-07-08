@@ -65,6 +65,27 @@ def test_fetch_respects_top_n():
     assert result == ["000005", "000004"]
 
 
+def test_market_change_is_pool_median():
+    client = MagicMock()
+    client.get.return_value = {
+        "output": [
+            _row("000001", "A", 5000, 1.0,  100, trade_value=30_000_000_000),
+            _row("000002", "B", 5000, -1.0, 100, trade_value=20_000_000_000),
+            _row("000003", "C", 5000, -3.0, 100, trade_value=10_000_000_000),
+        ]
+    }
+    provider = UniverseProvider(client, min_price=1000)
+    provider.fetch()
+
+    # 풀 전체 등락률 중앙값 median(1, -1, -3) = -1.0 (필터 전 표본)
+    assert provider.market_change == -1.0
+
+
+def test_market_change_none_before_fetch():
+    provider = UniverseProvider(MagicMock(), min_price=1000)
+    assert provider.market_change is None
+
+
 def test_set_universe_adds_and_removes_strategies():
     market = MagicMock()
     made = {}

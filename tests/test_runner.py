@@ -3,6 +3,7 @@ from src.scheduler.runner import (
     _affordable_qty,
     _already_committed,
     _cash_qty,
+    _market_bearish,
     _slot_qty,
 )
 
@@ -84,3 +85,25 @@ def test_not_committed_for_new_ticker():
 
 def test_not_committed_when_flat():
     assert _already_committed("002990", {}, set()) is False
+
+
+# ------------------------------------------------------------------
+# 하락 국면 필터 — 시장 약세 시 신규 매수 정지
+# ------------------------------------------------------------------
+
+def test_market_bearish_blocks_in_downtrend():
+    assert _market_bearish(-1.2) is True    # 시장 -1.2% → 하락 국면
+
+
+def test_market_bearish_allows_in_uptrend():
+    assert _market_bearish(0.8) is False
+
+
+def test_market_bearish_failsafe_when_unknown():
+    # 데이터 없으면(None) 매수 허용 — 데이터 오류로 전량 정지되는 것 방지
+    assert _market_bearish(None) is False
+
+
+def test_market_bearish_threshold_boundary():
+    assert _market_bearish(-0.5) is False   # 임계값과 같으면 허용(미만이어야 차단)
+    assert _market_bearish(-0.51) is True

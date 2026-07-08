@@ -24,6 +24,7 @@ TODO: 응답 필드명·거래증가율(vol_inrt) 단위·거래대금(acml_tr_p
       examples_llm/거래량순위/ 와 실거래 응답으로 재확인 후 임계값 보정 권장.
       (min_rvol·min_trade_value 는 단위 확인 전까지 기본 0=비활성. 랭킹은 단위와 무관.)
 """
+import statistics
 from dataclasses import dataclass
 
 from loguru import logger
@@ -87,11 +88,21 @@ class UniverseProvider:
         self._max_change_rate = max_change_rate
         self._min_rvol = min_rvol
         self._min_trade_value = min_trade_value
+        self._market_change: float | None = None   # 거래대금 상위 등락률 중앙값(시장 국면)
+
+    @property
+    def market_change(self) -> float | None:
+        """최근 풀(거래대금 상위)의 등락률 중앙값 = 시장 국면 지표. 미조회 시 None."""
+        return self._market_change
 
     def fetch(self) -> list[str]:
         """선정 프로세스를 거친 유니버스 종목코드 리스트(상위 top_n)를 반환한다."""
         pool = self._fetch_pool()
         _register_names({s.ticker: s.name for s in pool})   # 알림용 종목명 등록
+        # 시장 국면 = 거래대금 상위(대형주) 등락률 중앙값. 하락장 매수 정지 판단에 사용.
+        self._market_change = (
+            statistics.median([s.change_rate for s in pool]) if pool else None
+        )
         selected = self._select(pool)
         logger.info(
             "[유니버스] 거래대금 풀 {}건 → 필터·거래대금순 상위 {} 선정: {}",
