@@ -5,6 +5,7 @@ from src.scheduler.runner import (
     _cash_qty,
     _market_bearish,
     _slot_qty,
+    _stop_limit_reached,
 )
 
 
@@ -107,3 +108,21 @@ def test_market_bearish_failsafe_when_unknown():
 def test_market_bearish_threshold_boundary():
     assert _market_bearish(-0.5) is False   # 임계값과 같으면 허용(미만이어야 차단)
     assert _market_bearish(-0.51) is True
+
+
+# ------------------------------------------------------------------
+# 하루 손절 한도 — churn(회전율 폭증) 차단
+# ------------------------------------------------------------------
+
+def test_stop_limit_blocks_at_threshold():
+    assert _stop_limit_reached(4, 4) is True     # 한도 도달 → 매수 중단
+    assert _stop_limit_reached(5, 4) is True
+
+
+def test_stop_limit_allows_below_threshold():
+    assert _stop_limit_reached(0, 4) is False
+    assert _stop_limit_reached(3, 4) is False    # 한도 미만 → 매수 허용
+
+
+def test_stop_limit_disabled_when_zero():
+    assert _stop_limit_reached(99, 0) is False   # max<=0 → 비활성

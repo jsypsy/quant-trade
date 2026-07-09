@@ -31,6 +31,7 @@ from src.utils.time import (
 _DEFAULT_INTERVAL   = 300   # 장 중 주기 (초)
 _CLOSED_CHECK       = 60    # 장 외 대기 단위 (초)
 _BEAR_THRESHOLD     = -0.5  # 시장(거래대금 상위) 등락률 중앙값 이 % 미만 → 하락 국면(신규 매수 정지)
+_MAX_DAILY_STOPS    = 4      # 당일 손절 이 횟수 도달 시 신규 매수 중단(churn 차단). 0=비활성
 
 
 def _market_bearish(market_change: float | None, threshold: float = _BEAR_THRESHOLD) -> bool:
@@ -40,6 +41,16 @@ def _market_bearish(market_change: float | None, threshold: float = _BEAR_THRESH
     빠질 때는 아예 안 사고 현금 방어. 데이터 없으면 False(페일세이프: 매수 허용).
     """
     return market_change is not None and market_change < threshold
+
+
+def _stop_limit_reached(daily_stops: int, max_stops: int = _MAX_DAILY_STOPS) -> bool:
+    """당일 손절 횟수가 한도 이상이면 True → 신규 매수 중단(churn 차단).
+
+    사고→손절→다른 종목 사고→또 손절 반복(회전율 폭증)이 수수료·실현손실로 계좌를
+    깎는다. 하루 손절이 한도를 넘으면 "오늘 시장이 안 맞는다"고 보고 매수를 멈춘다.
+    max_stops<=0 이면 비활성.
+    """
+    return max_stops > 0 and daily_stops >= max_stops
 
 
 def _affordable_qty(capital: float, deployed: float, price: float) -> int:
@@ -119,6 +130,7 @@ class PaperTrader:
         self._universe_ts: float = 0.0
         self._cooldown_until: dict[str, float] = {}   # ticker → 재진입 가능 시각(monotonic)
         self._open_buys: set[str] = set()             # 봇이 매수·보유중인 종목 (잔고 지연 무관 피라미딩 차단)
+        self._daily_stops: int = 0                    # 당일 손절 횟수 (churn 차단 한도용)
 
     # ------------------------------------------------------------------
     # Public
@@ -201,6 +213,7 @@ class PaperTrader:
         if self._pnl_date != today:
             self._pnl_date = today
             self._day_start_value = balance.portfolio_value
+            self._daily_stops = 0   # 새 거래일 → 손절 카운터 리셋
         self._daily_pnl = float(balance.portfolio_value - self._day_start_value)
 
         allocated = balance.portfolio_value
@@ -237,6 +250,8 @@ class PaperTrader:
             if result and result.success:
                 exit_results[exit_order.ticker] = result
                 self._open_buys.discard(exit_order.ticker)   # 청산됨 → 재매수 허용(쿨다운 후)
+                if "손절" in exit_order.reason:
+                    self._daily_stops += 1   # churn 차단 — 당일 손절 누적
 
         # 유니버스 갱신 (보유 종목은 매도 관리 위해 항상 포함)
         self._refresh_universe(list(position_qtys.keys()))
@@ -252,8 +267,9 @@ class PaperTrader:
         pending = self._manager.get_pending_tickers()
         results = dict(exit_results)
         eod = self._monitor.eod_active()
-        # 신규 매수 전면 차단 조건: 장 마감 청산 구간 or 하락 국면(현금 방어)
+        # 신규 매수 전면 차단 조건: 장 마감 청산 / 하락 국면 / 당일 손절 한도(churn 차단)
         bearish = _market_bearish(self._universe.market_change)
+        stop_capped = _stop_limit_reached(self._daily_stops)
         if eod:
             logger.info("[KR] 장 마감 청산 구간 — 신규 매수 차단")
         if bearish:
@@ -261,9 +277,14 @@ class PaperTrader:
                 "[KR] 하락 국면(시장 {:+.2f}%) — 신규 매수 차단",
                 self._universe.market_change,
             )
+        if stop_capped:
+            logger.info(
+                "[KR] 당일 손절 {}회(한도 {}) — churn 차단, 신규 매수 중단",
+                self._daily_stops, _MAX_DAILY_STOPS,
+            )
 
         for ticker, signal in signals.items():
-            if signal.action == Action.BUY and (eod or bearish):
+            if signal.action == Action.BUY and (eod or bearish or stop_capped):
                 continue
 
             # 재진입 쿨다운 — 최근 매도 종목의 BUY 차단
