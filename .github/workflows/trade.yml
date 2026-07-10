@@ -7,10 +7,12 @@ on:
     - cron: "0 0 * * 1-5"
 
 # 동시 실행 차단 — 봇 두 대가 같은 계좌에서 동시 매매하는 것 방지.
-# 스케줄이 지연돼 수동 실행과 겹쳐도, 새 실행이 기존 실행을 자동 취소한다.
+# cancel-in-progress: false → 이미 도는 실행을 취소하지 않고 새 실행을 대기시킨다.
+# (수동 9시 실행이 늦게 뜨는 cron에 중간에 취소·재시작되면 손절 카운터 등 인메모리
+#  상태가 리셋되어 churn 필터가 반쪽만 작동하던 문제 방지 — 하루 단일 실행 보장.)
 concurrency:
   group: 자동매매
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   trade:
